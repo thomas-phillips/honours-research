@@ -1,8 +1,9 @@
 from torch.utils.data import DataLoader
 
-from nauta.preprocessing import get_preprocessing_layer
+from preprocessing import get_preprocessing_layer
 
-from nauta.one_stage.dataset import DeeperShipFeature, DeeperShip
+from one_stage.dataset import DeeperShipFeature, DeeperShip
+
 
 def create_data_loader(data, batch_size, shuffle=True):
     """Creates a pytorch dataloader from a Dataset.
@@ -18,6 +19,7 @@ def create_data_loader(data, batch_size, shuffle=True):
     loader = DataLoader(data, batch_size=batch_size, shuffle=shuffle)
 
     return loader
+
 
 def get_split_dataloader(config, split="test", shuffle=False):
     """Returns the desired dataloader for the selected split.
@@ -77,14 +79,20 @@ def get_dataset(config):
 
         # Get the training and validation.
         train_dataset = DeeperShipFeature(
-            train_dataset_path, num_of_classes=num_of_classes, preprocessing=preprocessings
+            train_dataset_path,
+            num_of_classes=num_of_classes,
+            preprocessing=preprocessings,
         )
         train_dataloader = create_data_loader(train_dataset, batch_size=batch_size)
 
         validation_dataset = DeeperShipFeature(
-            validation_dataset_path, num_of_classes=num_of_classes, preprocessing=preprocessings
+            validation_dataset_path,
+            num_of_classes=num_of_classes,
+            preprocessing=preprocessings,
         )
-        validation_dataloader = create_data_loader(validation_dataset, batch_size=batch_size, shuffle=False)
+        validation_dataloader = create_data_loader(
+            validation_dataset, batch_size=batch_size, shuffle=False
+        )
         return train_dataloader, validation_dataloader
     else:
         sample_rate = config["hyperparameters"]["sample_rate"]
@@ -99,12 +107,20 @@ def get_dataset(config):
 
         # Get the training, validation and test dataloaders.
         train_dataset = DeeperShip(
-            train_metadata_path, sample_rate, number_of_samples, transform=transformation
+            train_metadata_path,
+            sample_rate,
+            number_of_samples,
+            transform=transformation,
         )
         train_dataloader = create_data_loader(train_dataset, batch_size=batch_size)
 
         validation_dataset = DeeperShip(
-            validation_metadata_path, sample_rate, number_of_samples, transform=transformation
+            validation_metadata_path,
+            sample_rate,
+            number_of_samples,
+            transform=transformation,
         )
-        validation_dataloader = create_data_loader(validation_dataset, batch_size=batch_size, shuffle=False)
+        validation_dataloader = create_data_loader(
+            validation_dataset, batch_size=batch_size, shuffle=False
+        )
         return train_dataloader, validation_dataloader

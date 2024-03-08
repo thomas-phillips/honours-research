@@ -9,9 +9,9 @@ from torchmetrics import Accuracy, Precision, Recall, F1, ConfusionMatrix
 from torchsummary import summary
 from tqdm import tqdm
 
-from nauta.dataset import get_split_dataloader
-from nauta.model import get_model
-from nauta.tools.utils import plot_confusion_matrix, create_dir
+from dataset import get_split_dataloader
+from model import get_model
+from tools.utils import plot_confusion_matrix, create_dir
 
 
 def create_parser():
@@ -31,7 +31,7 @@ def create_parser():
     return parser
 
 
-def evaluate(model, dataloader, metrics, eval_dir, device='cpu'):
+def evaluate(model, dataloader, metrics, eval_dir, device="cpu"):
     """Perform an evaluation on the loaded model
 
     Args:
@@ -61,7 +61,9 @@ def evaluate(model, dataloader, metrics, eval_dir, device='cpu'):
             )
             cm_fig_norm.savefig(os.path.join(eval_dir, "confusion.svg"))
             cm_fig = plot_confusion_matrix(
-                value.numpy(), class_names=dataloader.dataset.class_mapping.keys(), normalize=False
+                value.numpy(),
+                class_names=dataloader.dataset.class_mapping.keys(),
+                normalize=False,
             )
             cm_fig.savefig(os.path.join(eval_dir, "confusion_not_norm.svg"))
         else:
@@ -70,7 +72,7 @@ def evaluate(model, dataloader, metrics, eval_dir, device='cpu'):
         metrics[metric].reset()
 
     # save info into txt file.
-    with open(os.path.join(eval_dir, "metrics.csv"), 'w') as f:
+    with open(os.path.join(eval_dir, "metrics.csv"), "w") as f:
         for line in data_info:
             f.write(f"{line}\n")
 
@@ -102,23 +104,25 @@ if __name__ == "__main__":
 
     # Declare and initialize the model
     model = get_model(args_list, device=device)
-    model_weights = os.path.join(args_list["paths"]["output_dir"], "final_model", "best.pth")
+    model_weights = os.path.join(
+        args_list["paths"]["output_dir"], "final_model", "best.pth"
+    )
     state_dict = torch.load(model_weights)
     model.load_state_dict(state_dict)
 
     # Initialize the metrics.
-    accuracy = Accuracy(average='macro', num_classes=num_of_classes)
-    precision = Precision(average='macro', num_classes=num_of_classes)
-    recall = Recall(average='macro', num_classes=num_of_classes)
-    f1 = F1(average='macro', num_classes=num_of_classes)
+    accuracy = Accuracy(average="macro", num_classes=num_of_classes)
+    precision = Precision(average="macro", num_classes=num_of_classes)
+    recall = Recall(average="macro", num_classes=num_of_classes)
+    f1 = F1(average="macro", num_classes=num_of_classes)
     confusion_matrix = ConfusionMatrix(num_classes=num_of_classes)
 
     metrics = {
-        "Accuracy":accuracy,
-        "Precision":precision,
-        "Recall":recall,
-        "F1":f1,
-        "ConfusionMatrix":confusion_matrix,
+        "Accuracy": accuracy,
+        "Precision": precision,
+        "Recall": recall,
+        "F1": f1,
+        "ConfusionMatrix": confusion_matrix,
     }
 
     evaluate(model, dataloader, metrics, eval_dir, device=device)

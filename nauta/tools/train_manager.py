@@ -1,15 +1,26 @@
 import math
 from tqdm import tqdm
 
-from nauta.tools.utils import plot_confusion_matrix
+from tools.utils import plot_confusion_matrix
 
 
 class TrainManager:
     def __init__(
-        self, model, loss_fn, optimizer, lr_scheduler, train_dataloader, validation_dataloader,
-        epochs, initial_epoch=0, metrics={}, reference_metric="", writer=None, device='cpu',
+        self,
+        model,
+        loss_fn,
+        optimizer,
+        lr_scheduler,
+        train_dataloader,
+        validation_dataloader,
+        epochs,
+        initial_epoch=0,
+        metrics={},
+        reference_metric="",
+        writer=None,
+        device="cpu",
         early_stop=True,
-        ):
+    ):
 
         self.model = model
         self.loss_fn = loss_fn
@@ -42,9 +53,11 @@ class TrainManager:
         self.model.train()
         step = epoch * len(self.train_dataloader)
         train_loss = 0
-        for input_data, target_data in tqdm(self.train_dataloader,
-            desc=f"Train", bar_format="{l_bar}{bar:10}{r_bar}{bar:-10b}"
-            ):
+        for input_data, target_data in tqdm(
+            self.train_dataloader,
+            desc=f"Train",
+            bar_format="{l_bar}{bar:10}{r_bar}{bar:-10b}",
+        ):
 
             input_data = input_data.to(self.device)
             target_data = target_data.to(self.device)
@@ -56,15 +69,15 @@ class TrainManager:
             train_loss += loss.item()
 
             step += 1
-            self.writer.add_scalar('Loss/train', loss, step)
+            self.writer.add_scalar("Loss/train", loss, step)
 
             # backpropagate error and update weights
             loss.backward()
             self.optimizer.step()
 
-        train_loss = train_loss/len(self.train_dataloader)
+        train_loss = train_loss / len(self.train_dataloader)
 
-        self.writer.add_scalar('Loss/train_epoch', train_loss, step)
+        self.writer.add_scalar("Loss/train_epoch", train_loss, step)
         print(f"Loss: {train_loss:.4f}")
         return train_loss
 
@@ -73,9 +86,11 @@ class TrainManager:
         self.last_validation_loss = self.current_validation_loss
         self.current_validation_loss = 0
         display_values = []
-        for input_data, target_data in tqdm(self.validation_dataloader,
-            desc=f"Validation", bar_format="{l_bar}{bar:10}{r_bar}{bar:-10b}"
-            ):
+        for input_data, target_data in tqdm(
+            self.validation_dataloader,
+            desc=f"Validation",
+            bar_format="{l_bar}{bar:10}{r_bar}{bar:-10b}",
+        ):
 
             input_data = input_data.to(self.device)
             target_data = target_data.to(self.device)
@@ -88,12 +103,14 @@ class TrainManager:
             for metric in self.metrics:
                 self.metrics[metric](prediction, target_data)
 
-        use_reference=False
+        use_reference = False
         if self.reference_metric in self.metrics:
-            use_reference=True
+            use_reference = True
 
-        self.current_validation_loss = self.current_validation_loss/len(self.validation_dataloader)
-        self.writer.add_scalar(f'Loss/validation', self.current_validation_loss, epoch)
+        self.current_validation_loss = self.current_validation_loss / len(
+            self.validation_dataloader
+        )
+        self.writer.add_scalar(f"Loss/validation", self.current_validation_loss, epoch)
         display_values.append(f"Loss: {self.current_validation_loss:.4f}")
 
         for idx, metric in enumerate(self.metrics):
@@ -105,12 +122,13 @@ class TrainManager:
                     ref_metric = value
             if metric == "ConfusionMatrix":
                 cm_fig = plot_confusion_matrix(
-                    value.numpy(), class_names=self.validation_dataloader.dataset.class_mapping.keys()
+                    value.numpy(),
+                    class_names=self.validation_dataloader.dataset.class_mapping.keys(),
                 )
-                self.writer.add_figure(f'Metrics/{metric}', cm_fig, epoch)
+                self.writer.add_figure(f"Metrics/{metric}", cm_fig, epoch)
             else:
                 display_values.append(f"{metric}: {value:.4f}")
-                self.writer.add_scalar(f'Metrics/{metric}', value, epoch)
+                self.writer.add_scalar(f"Metrics/{metric}", value, epoch)
             self.metrics[metric].reset()
 
         print("  ".join(display_values))
@@ -123,7 +141,9 @@ class TrainManager:
             loss = self._train_single_epoch(epoch)
             measure = self._validate_single_epoch(epoch)
 
-            self.writer.add_scalar(f'Hyper/lr', self.optimizer.param_groups[0]["lr"], epoch)
+            self.writer.add_scalar(
+                f"Hyper/lr", self.optimizer.param_groups[0]["lr"], epoch
+            )
             self.lr_scheduler.step()
 
             if measure.cpu().detach().numpy() > self.best_measure:
@@ -131,7 +151,9 @@ class TrainManager:
 
             # Save a checkpoint.
             if checkpoint_manager is not None:
-                checkpoint_manager.save(epoch, measure=math.floor(self.best_measure * 1000000))
+                checkpoint_manager.save(
+                    epoch, measure=math.floor(self.best_measure * 1000000)
+                )
 
             print("---------------------------")
 
@@ -140,7 +162,7 @@ class TrainManager:
                 if self.current_validation_loss > self.last_validation_loss:
                     self.trigger_times += 1
                     if self.trigger_times >= self.patience:
-                        print('Early stopping!\n')
+                        print("Early stopping!\n")
                         break
                 else:
                     self.trigger_times = 0

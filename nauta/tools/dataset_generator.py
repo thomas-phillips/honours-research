@@ -8,8 +8,9 @@ import numpy as np
 import pandas as pd
 
 from tqdm import tqdm
-from nauta.tools.utils import create_dir
-from nauta.preprocessing import get_preprocessing_layer
+from tools.utils import create_dir
+from preprocessing import get_preprocessing_layer
+
 
 def create_parser():
     """Create the parser object.
@@ -27,6 +28,7 @@ def create_parser():
 
     return parser
 
+
 def right_pad_small_samples(signal, num_samples):
     """Insert a pad at the right side of the data
 
@@ -43,6 +45,7 @@ def right_pad_small_samples(signal, num_samples):
         signal = torch.nn.functional.pad(signal, last_dim_padding)
     return signal
 
+
 def resample_to_target_sr(signal, sr, target_sample_rate):
     """Resample audio to desired sample rate.
 
@@ -58,6 +61,7 @@ def resample_to_target_sr(signal, sr, target_sample_rate):
         signal = resampler(signal)
     return signal
 
+
 def mix_down_to_one_channel(signal):
     """Unify the data into ione channel.
 
@@ -71,6 +75,7 @@ def mix_down_to_one_channel(signal):
         signal = torch.mean(signal, dim=0, keepdim=True)
     return signal
 
+
 def cut_bigger_samples(signal, num_samples):
     """Cut the signal to the desired num of samples.
 
@@ -81,8 +86,9 @@ def cut_bigger_samples(signal, num_samples):
         tensor: The processed signal.
     """
     if signal.shape[1] > num_samples:
-        signal = signal[:, : num_samples]
+        signal = signal[:, :num_samples]
     return signal
+
 
 def get_full_audio(audio_sample_path, target_sample_rate):
     signal, sr = torchaudio.load(audio_sample_path)
@@ -91,29 +97,36 @@ def get_full_audio(audio_sample_path, target_sample_rate):
     signal = mix_down_to_one_channel(signal)
     return signal
 
+
 def get_audio_chunk(signal, seconds_init, sample_rate, num_samples):
-    initial_offset = int(seconds_init*sample_rate)
+    initial_offset = int(seconds_init * sample_rate)
     final_offset = initial_offset + num_samples
     signal_chunk = signal[:, initial_offset:final_offset]
     signal_chunk = cut_bigger_samples(signal_chunk, num_samples)
     signal_chunk = right_pad_small_samples(signal_chunk, num_samples)
     return signal_chunk
 
+
 def get_interleaved_metadata(metadata_path):
     original_metadata = pd.read_csv(metadata_path)
     interleaved_metadata = original_metadata.copy()
-    interleaved_metadata["sub_init"] = interleaved_metadata["sub_init"].apply(lambda row: row + 0.5)
+    interleaved_metadata["sub_init"] = interleaved_metadata["sub_init"].apply(
+        lambda row: row + 0.5
+    )
     metadata = pd.concat([original_metadata, interleaved_metadata])
     metadata = metadata.reset_index(drop=True)
     return metadata
 
-def generate_dataset_artifacts(metadata_path, output_dir, target_sample_rate, number_of_samples, interleaved=True):
+
+def generate_dataset_artifacts(
+    metadata_path, output_dir, target_sample_rate, number_of_samples, interleaved=True
+):
     if interleaved:
         metadata = get_interleaved_metadata(metadata_path)
     else:
         metadata = pd.read_csv(metadata_path)
 
-    metadata['file_index'] = metadata.index
+    metadata["file_index"] = metadata.index
 
     labels_names = list(metadata["label"].unique())
     for preprocessing in ["audio", "mel", "cqt", "gammatone"]:
@@ -131,7 +144,9 @@ def generate_dataset_artifacts(metadata_path, output_dir, target_sample_rate, nu
         for _, row in df.iterrows():
             sec_init = row["sub_init"]
             idx = row["file_index"]
-            audio_chunk = get_audio_chunk(audio_signal, sec_init, target_sample_rate, number_of_samples)
+            audio_chunk = get_audio_chunk(
+                audio_signal, sec_init, target_sample_rate, number_of_samples
+            )
 
             # Audio
             audio_path = os.path.join(output_dir, "audio", label, f"{idx}.wav")
@@ -156,6 +171,7 @@ def generate_dataset_artifacts(metadata_path, output_dir, target_sample_rate, nu
     metadata.to_csv(meta_file_path)
     return
 
+
 def main():
     parser = create_parser()
     args = parser.parse_args()
@@ -179,17 +195,36 @@ def main():
     # Generate test Dataset
     print("Generating the test dataset")
     test_dir = create_dir(os.path.join(out_dir, "test"))
-    generate_dataset_artifacts(test_metadata_path, test_dir, sample_rate, number_of_samples, interleaved=interleaved)
+    generate_dataset_artifacts(
+        test_metadata_path,
+        test_dir,
+        sample_rate,
+        number_of_samples,
+        interleaved=interleaved,
+    )
 
     # Generate validation Dataset
     print("Generating the validation dataset")
     validation_dir = create_dir(os.path.join(out_dir, "validation"))
-    generate_dataset_artifacts(validation_metadata_path, validation_dir, sample_rate, number_of_samples, interleaved=interleaved)
+    generate_dataset_artifacts(
+        validation_metadata_path,
+        validation_dir,
+        sample_rate,
+        number_of_samples,
+        interleaved=interleaved,
+    )
 
     # Generate train Dataset
     print("Generating the train dataset")
     train_dir = create_dir(os.path.join(out_dir, "train"))
-    generate_dataset_artifacts(train_metadata_path, train_dir, sample_rate, number_of_samples, interleaved=interleaved)
+    generate_dataset_artifacts(
+        train_metadata_path,
+        train_dir,
+        sample_rate,
+        number_of_samples,
+        interleaved=interleaved,
+    )
+
 
 if __name__ == "__main__":
     main()

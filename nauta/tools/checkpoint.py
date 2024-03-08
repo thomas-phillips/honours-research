@@ -7,7 +7,7 @@ import torch
 
 from glob import glob
 
-from nauta.tools.utils import create_dir
+from tools.utils import create_dir
 
 
 class Checkpoint:
@@ -34,11 +34,12 @@ class Checkpoint:
         try:
             state = torch.load(save_path, map_location=device)
             try:
-                self.model.load_state_dict(state['model_weights'])
+                self.model.load_state_dict(state["model_weights"])
                 if self.optimizer is not None:
-                    self.optimizer.load_state_dict(state['optim_state'])
+                    self.optimizer.load_state_dict(state["optim_state"])
                 logging.info(
-                    'Successfully loaded model weights from {}.'.format(save_path))
+                    "Successfully loaded model weights from {}.".format(save_path)
+                )
                 return True
             except Exception as e:
                 # there was an issue loading the state which means
@@ -61,9 +62,9 @@ class Checkpoint:
         Args:
           save_path (str): The name of the checkpoint to save.
         """
-        state = {'model_weights': self.model.state_dict()}
+        state = {"model_weights": self.model.state_dict()}
         if self.optimizer is not None:
-            state['optim_state'] = self.optimizer.state_dict()
+            state["optim_state"] = self.optimizer.state_dict()
 
         # ignore ctrl+c while saving
         try:
@@ -75,14 +76,13 @@ class Checkpoint:
 
         # atomic save
         save_dir = os.path.dirname(save_path)
-        tmp_path = os.path.join(
-            save_dir, "tmp-{}.ckpt".format(np.random.randint(1e10)))
+        tmp_path = os.path.join(save_dir, "tmp-{}.ckpt".format(np.random.randint(1e10)))
         torch.save(state, tmp_path)
         # rename is an atomic operation in python
         # it is POSIX compliant according to docs
         # https://docs.python.org/3/library/os.html#os.rename
         os.rename(tmp_path, save_path)
-        logging.info('Saved checkpoint at {}.'.format(save_path))
+        logging.info("Saved checkpoint at {}.".format(save_path))
 
         # restore SIGINT handler
         if orig_handler is not None:
@@ -135,14 +135,14 @@ class CheckpointManager:
             last_ckpt = ckpts[-1]
             status = self.checkpoint.restore(last_ckpt, self.device)
             if not status:
-                logging.info('Could not restore latest checkpoint file.')
+                logging.info("Could not restore latest checkpoint file.")
                 return 0
             self.latest_checkpoint = last_ckpt
-            ckpt_num = int(os.path.basename(last_ckpt).split('.')[0])
+            ckpt_num = int(os.path.basename(last_ckpt).split(".")[0])
         if self.keep_best:
             best = self.load_best_checkpoint()
             if best:
-                self.best_measure = int(os.path.basename(best).split('.')[0])
+                self.best_measure = int(os.path.basename(best).split(".")[0])
         return ckpt_num
 
     def load_best_checkpoint(self):
@@ -153,7 +153,7 @@ class CheckpointManager:
                 best_ckpt = ckpts[-1]
                 status = self.checkpoint.restore(best_ckpt, self.device)
                 if not status:
-                    logging.info('Could not restore best checkpoint file.')
+                    logging.info("Could not restore best checkpoint file.")
                     return 0
                 return best_ckpt
         return 0
@@ -168,16 +168,12 @@ class CheckpointManager:
           measure (int): the metric to consider when saving the best
             ckpt. MUST be integer.
         """
-        save_path = os.path.join(
-            self.directory, "{:016d}.ckpt".format(global_step)
-        )
+        save_path = os.path.join(self.directory, "{:016d}.ckpt".format(global_step))
         self.checkpoint.save(save_path)
         if self.keep_best:
             if measure > self.best_measure:
                 self.best_measure = measure
-                save_best = os.path.join(
-                    self.directory, "{:016d}.best".format(measure)
-                )
+                save_best = os.path.join(self.directory, "{:016d}.best".format(measure))
                 self.checkpoint.save(save_best)
 
         self.latest_checkpoint = save_path

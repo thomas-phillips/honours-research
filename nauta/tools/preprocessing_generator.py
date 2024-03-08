@@ -8,8 +8,8 @@ from pathlib import Path
 import numpy as np
 
 from tqdm import tqdm
-from nauta.tools.utils import create_dir
-from nauta.preprocessing import get_preprocessing_layer
+from tools.utils import create_dir
+from preprocessing import get_preprocessing_layer
 
 
 def generate_dataset_artifacts(root_path, target_sample_rate):
@@ -51,7 +51,9 @@ def main():
 
     # Generate validation Dataset
     print("Generating the validation dataset")
-    val_path = Path("/workspaces/underwater/dataset/DeeperShip/4k/preprocessed/validation")
+    val_path = Path(
+        "/workspaces/underwater/dataset/DeeperShip/4k/preprocessed/validation"
+    )
     sample_rate = 32000
     generate_dataset_artifacts(val_path, sample_rate)
 
@@ -60,6 +62,7 @@ def main():
     train_path = Path("/workspaces/underwater/dataset/DeeperShip/4k/preprocessed/train")
     sample_rate = 32000
     generate_dataset_artifacts(train_path, sample_rate)
+
 
 if __name__ == "__main__":
     main()

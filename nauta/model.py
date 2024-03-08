@@ -1,13 +1,13 @@
 from torch import nn
-from nauta.one_stage.model import FeedForwardNet, CNNNetwork, CNNNetworkCQT, ResNet18
-from nauta.two_stage.model import CNNVesselNetwork
+from one_stage.model import FeedForwardNet, CNNNetwork, CNNNetworkCQT, ResNet18
+from two_stage.model import CNNVesselNetwork
 
 models_list = {
     "feedforward": FeedForwardNet,
     "cnn": CNNNetwork,
-    "cnncqt":CNNNetworkCQT,
-    "cnnvessel":CNNVesselNetwork,
-    "resnet18":ResNet18,
+    "cnncqt": CNNNetworkCQT,
+    "cnnvessel": CNNVesselNetwork,
+    "resnet18": ResNet18,
 }
 
 
@@ -57,7 +57,7 @@ def get_model(config, device="cpu"):
     model = models_list[model_name.lower()](
         model_depth=model_depth,
         input_channels=input_channels,
-        out_classes=num_of_classes
+        out_classes=num_of_classes,
     ).to(device)
 
     model.apply(init_weights)
