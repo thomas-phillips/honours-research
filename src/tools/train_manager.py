@@ -69,7 +69,7 @@ class TrainManager:
             train_loss += loss.item()
 
             step += 1
-            self.writer.add_scalar("Loss/train", loss, step)
+            # self.writer.add_scalar("Loss/train", loss, step)
 
             # backpropagate error and update weights
             loss.backward()
@@ -100,8 +100,8 @@ class TrainManager:
             loss = self.loss_fn(prediction, target_data)
             self.current_validation_loss += loss.item()
 
-            for metric in self.metrics:
-                self.metrics[metric](prediction, target_data)
+            # for metric in self.metrics:
+            #     self.metrics[metric](prediction, target_data)
 
         use_reference = False
         if self.reference_metric in self.metrics:
@@ -113,35 +113,34 @@ class TrainManager:
         self.writer.add_scalar(f"Loss/validation", self.current_validation_loss, epoch)
         display_values.append(f"Loss: {self.current_validation_loss:.4f}")
 
-        for idx, metric in enumerate(self.metrics):
-            value = self.metrics[metric].compute()
-            if idx == 0:
-                ref_metric = value
-            if use_reference:
-                if metric == self.reference_metric:
-                    ref_metric = value
-            if metric == "ConfusionMatrix":
-                cm_fig = plot_confusion_matrix(
-                    value.numpy(),
-                    class_names=self.validation_dataloader.dataset.class_mapping.keys(),
-                )
-                self.writer.add_figure(f"Metrics/{metric}", cm_fig, epoch)
-            else:
-                display_values.append(f"{metric}: {value:.4f}")
-                self.writer.add_scalar(f"Metrics/{metric}", value, epoch)
-            self.metrics[metric].reset()
+        # for idx, metric in enumerate(self.metrics):
+        #     value = self.metrics[metric].compute()
+        #     if idx == 0:
+        #         ref_metric = value
+        #     if use_reference:
+        #         if metric == self.reference_metric:
+        #             ref_metric = value
+        #     if metric == "ConfusionMatrix":
+        #         cm_fig = plot_confusion_matrix(
+        #             value.numpy(),
+        #             class_names=self.validation_dataloader.dataset.class_mapping.keys(),
+        #         )
+        #         self.writer.add_figure(f"Metrics/{metric}", cm_fig, epoch)
+        #     else:
+        #         display_values.append(f"{metric}: {value:.4f}")
+        #         self.writer.add_scalar(f"Metrics/{metric}", value, epoch)
+        #     self.metrics[metric].reset()
 
         print("  ".join(display_values))
 
-        return ref_metric
+        # return ref_metric
+        return ""
 
     def start_train(self, checkpoint_manager=None):
         for epoch in range(self.initial_epoch, self.epochs):
             print(f"Epoch {epoch+1}")
-            # loss = self._train_single_epoch(epoch)
+            loss = self._train_single_epoch(epoch)
             measure = self._validate_single_epoch(epoch)
-
-            exit()
 
             self.writer.add_scalar(
                 f"Hyper/lr", self.optimizer.param_groups[0]["lr"], epoch

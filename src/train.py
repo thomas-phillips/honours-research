@@ -54,6 +54,7 @@ def main():
         device = "cuda"
     else:
         device = "cpu"
+    # device = "cpu"
     print(f"Using {device}")
 
     num_of_classes = args_list["model"]["num_of_classes"]
@@ -84,8 +85,9 @@ def main():
 
     # Declare the model.
     model = get_model(args_list, device=device)
-    print("Model Architecture")
-    print(summary(model, (input_channels, 95, 126)))
+    print(next(model.parameters()).device)
+    # print("Model Architecture")
+    # print(summary(model, (input_channels, 95, 126)))
 
     # Initialise loss funtion + optimizer.
     loss_fn = nn.CrossEntropyLoss()
@@ -105,29 +107,29 @@ def main():
     print(type(optimizer))
     print(type(lr_scheduler))
 
-    images, _ = next(iter(train_dataloader))
-    print(f"{images}")
-
-    exit()
+    # images, _ = next(iter(train_dataloader))
+    # print(f"{images}")
 
     # Initialize metrics.
-    accuracy = Accuracy(average="macro", num_classes=num_of_classes)
-    accuracy_micro = Accuracy(average="micro", num_classes=num_of_classes)
-    accuracy_weight = Accuracy(average="weighted", num_classes=num_of_classes)
-    precision = Precision(average="macro", num_classes=num_of_classes)
-    recall = Recall(average="macro", num_classes=num_of_classes)
-    f1 = F1(average="macro", num_classes=num_of_classes)
-    confusion_matrix = ConfusionMatrix(num_classes=num_of_classes)
+    # accuracy = Accuracy("multiclass", average="macro", num_classes=num_of_classes)
+    # accuracy_micro = Accuracy(average="micro", num_classes=num_of_classes)
+    # accuracy_weight = Accuracy(average="weighted", num_classes=num_of_classes)
+    # precision = Precision(average="macro", num_classes=num_of_classes)
+    # recall = Recall(average="macro", num_classes=num_of_classes)
+    # f1 = F1(average="macro", num_classes=num_of_classes)
+    # confusion_matrix = ConfusionMatrix(num_classes=num_of_classes)
 
-    metrics = {
-        "Accuracy": accuracy,
-        "AccuracyMicro": accuracy_micro,
-        "AccuracyWeighted": accuracy_weight,
-        "Precision": precision,
-        "Recall": recall,
-        "F1": f1,
-        "ConfusionMatrix": confusion_matrix,
-    }
+    # metrics = {
+    #     "Accuracy": accuracy,
+    #     "AccuracyMicro": accuracy_micro,
+    #     "AccuracyWeighted": accuracy_weight,
+    #     "Precision": precision,
+    #     "Recall": recall,
+    #     "F1": f1,
+    #     "ConfusionMatrix": confusion_matrix,
+    # }
+
+    metrics = {}
 
     # Create a checkpoint manager.
     checkpoint_manager = CheckpointManager(

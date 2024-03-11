@@ -13,20 +13,27 @@ optim:
 model:
   name: "resnet18"
   cnn_depth: 4
-  num_of_classes: 4
+  num_of_classes: 5
   input_channels: 1
 
 paths:
-  output_dir: "/onc/out/inc2000_resnet_sgd_b25_noback"
+  output_dir: "./out/inc2000_resnet_sgd_b25_noback"
 
 dataset:
   type: "deepership"
-  type: "test"
-  train_metadata: "/onc/preprocessed/train/metadata.csv"
-  validation_metadata: "/onc//preprocessed/validation/metadata.csv"
-  test_metadata: "/onc//preprocessed/test/metadata.csv"
+  train_metadata: "/run/media/thomas/Elements/Preprocessed/train/metadata_updated.csv"
+  validation_metadata: "/run/media/thomas/Elements/Preprocessed/validation/metadata_updated.csv"
+  test_metadata: "/run/media/thomas/Elements/Preprocessed/test/metadata_updated.csv"
   preprocess:
     - mel
+
+# dataset:
+#   type: "deepershipfeature"
+#   train_root_path: "/run/media/thomas/Elements/Preprocessed/train/"
+#   validation_root_path: "/run/media/thomas/Elements/Preprocessed/validation/"
+#   test_root_path: "/run/media/thomas/Elements/Preprocessed/test/"
+#   preprocess:
+#     - mel
 
 preprocessing:
   type: "mel"

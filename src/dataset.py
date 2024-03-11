@@ -16,7 +16,6 @@ def create_data_loader(data, batch_size, shuffle=True):
     Returns:
         DataLoader: The generated dataloader.
     """
-    print(data.num_samples)
     loader = DataLoader(data, batch_size=batch_size, shuffle=shuffle)
 
     return loader
@@ -84,6 +83,7 @@ def get_dataset(config):
             num_of_classes=num_of_classes,
             preprocessing=preprocessings,
         )
+        print(type(train_dataset))
         train_dataloader = create_data_loader(train_dataset, batch_size=batch_size)
 
         validation_dataset = DeeperShipFeature(
@@ -91,6 +91,7 @@ def get_dataset(config):
             num_of_classes=num_of_classes,
             preprocessing=preprocessings,
         )
+        print(type(validation_dataset))
         validation_dataloader = create_data_loader(
             validation_dataset, batch_size=batch_size, shuffle=False
         )
@@ -113,6 +114,7 @@ def get_dataset(config):
             number_of_samples,
             transform=transformation,
         )
+        print(type(train_dataset))
         train_dataloader = create_data_loader(train_dataset, batch_size=batch_size)
 
         validation_dataset = DeeperShip(
@@ -121,6 +123,7 @@ def get_dataset(config):
             number_of_samples,
             transform=transformation,
         )
+        print(type(validation_dataset))
         validation_dataloader = create_data_loader(
             validation_dataset, batch_size=batch_size, shuffle=False
         )

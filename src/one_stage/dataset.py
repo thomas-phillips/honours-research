@@ -39,7 +39,6 @@ class DeeperShip(Dataset):
             "cargo": 2,
             "passengership": 3,
             "background": 4,
-            "other": 5,
         }
 
     def __len__(self):
@@ -167,6 +166,7 @@ class DeeperShipFeature(Dataset):
     def __init__(
         self, root_path, num_of_classes=5, preprocessing=["mel", "gammatone", "cqt"]
     ):
+        exclude_back = False
         if num_of_classes == 5:
             self.class_mapping = {
                 "tug": 0,
