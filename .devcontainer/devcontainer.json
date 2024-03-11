@@ -1,0 +1,36 @@
+{
+    "name": "ONC",
+    "build": {
+        "dockerfile": "Dockerfile"
+    },
+    // "postCreateCommand": "sudo apt install -y libsndfile1 libsndfile1-dev && pip3 install -r requirements.txt && pip3 install -r requirements-dev.txt",
+    "postCreateCommand": "sudo apt install -y libsndfile1 libsndfile1-dev",
+    "remoteUser": "user",
+    "containerUser": "user",
+    
+    "mounts" : [
+        "source=${localEnv:HOME}/.bashrc,target=/home/user/.bashrc,type=bind,consistency=cached",
+        "source=${localEnv:HOME}/.bash_history,target=/home/user/.bash_history,type=bind,consistency=cached",
+        "source=${localEnv:HOME}/.zshrc,target=/home/user/.zshrc,type=bind,consistency=cached",
+        "source=${localEnv:HOME}/.zsh_history,target=/home/user/.zsh_history,type=bind,consistency=cached",
+        "source=${localEnv:HOME}/.oh-my-zsh/,target=/home/user/.oh-my-zsh,type=bind,consistency=cached",
+        "source=${localEnv:HOME}/.p10k.zsh,target=/home/user/.p10k.zsh,type=bind,consistency=cached",
+        "source=${localEnv:HOME}/.ssh/,target=/home/user/.ssh,type=bind,consistency=cached",
+        "source=${localEnv:HOME}/.gitconfig,target=/home/user/.gitconfig,type=bind,consistency=cached",
+        "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind,consistency=cached",
+        "source=/usr/bin/docker,target=/bin/docker,type=bind,consistency=cached"
+    ],
+    "runArgs": ["--privileged"],
+    "customizations": {
+        "vscode": {
+            "settings": {
+                "terminal.integrated.defaultProfile.linux": "zsh",
+                "terminal.integrated.profiles.linux": {
+                    "zsh": {
+                        "path": "/bin/zsh"
+                    }
+                }
+            }
+        }
+    }
+}

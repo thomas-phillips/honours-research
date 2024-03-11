@@ -195,6 +195,7 @@ def main():
     # Generate test Dataset
     print("Generating the test dataset")
     test_dir = create_dir(os.path.join(out_dir, "test"))
+    print(test_dir)
     generate_dataset_artifacts(
         test_metadata_path,
         test_dir,
@@ -206,6 +207,7 @@ def main():
     # Generate validation Dataset
     print("Generating the validation dataset")
     validation_dir = create_dir(os.path.join(out_dir, "validation"))
+    print(validation_dir)
     generate_dataset_artifacts(
         validation_metadata_path,
         validation_dir,
@@ -217,6 +219,7 @@ def main():
     # Generate train Dataset
     print("Generating the train dataset")
     train_dir = create_dir(os.path.join(out_dir, "train"))
+    print(train_dir)
     generate_dataset_artifacts(
         train_metadata_path,
         train_dir,

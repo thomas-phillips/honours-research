@@ -54,6 +54,8 @@ def get_model(config, device="cpu"):
     input_channels = config["model"]["input_channels"]
     num_of_classes = config["model"]["num_of_classes"]
 
+    print(f"device: {device}")
+
     model = models_list[model_name.lower()](
         model_depth=model_depth,
         input_channels=input_channels,

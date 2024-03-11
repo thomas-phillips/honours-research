@@ -16,6 +16,7 @@ def create_data_loader(data, batch_size, shuffle=True):
     Returns:
         DataLoader: The generated dataloader.
     """
+    print(data.num_samples)
     loader = DataLoader(data, batch_size=batch_size, shuffle=shuffle)
 
     return loader

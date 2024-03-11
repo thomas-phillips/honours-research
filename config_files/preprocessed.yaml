@@ -3,6 +3,8 @@ hyperparameters:
   batch_size: 25
   learning_rate: 0.001
   lr_schd_gamma: 0.9
+  sample_rate: 32000
+  number_of_samples: 1
 
 optim:
   type: "sgd"
@@ -12,13 +14,19 @@ model:
   name: "resnet18"
   cnn_depth: 4
   num_of_classes: 4
-  input_channels: 3
+  input_channels: 1
 
 paths:
-  output_dir: "/workspaces/underwater/dev/underwater_snd/out/inc2000_resnet_sgd_b25_noback"
+  output_dir: "/onc/out/inc2000_resnet_sgd_b25_noback"
 
 dataset:
-  type: "deepershipfeature"
-  train_root_path: "/workspaces/underwater/dataset/DeeperShip/2k/preprocessed/train/"
-  validation_root_path: "/workspaces/underwater/dataset/DeeperShip/2k/preprocessed/validation/"
-  test_root_path: "/workspaces/underwater/dataset/DeeperShip/2k/preprocessed/test/"
+  type: "deepership"
+  type: "test"
+  train_metadata: "/onc/preprocessed/train/metadata.csv"
+  validation_metadata: "/onc//preprocessed/validation/metadata.csv"
+  test_metadata: "/onc//preprocessed/test/metadata.csv"
+  preprocess:
+    - mel
+
+preprocessing:
+  type: "mel"

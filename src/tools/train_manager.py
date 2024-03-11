@@ -138,8 +138,10 @@ class TrainManager:
     def start_train(self, checkpoint_manager=None):
         for epoch in range(self.initial_epoch, self.epochs):
             print(f"Epoch {epoch+1}")
-            loss = self._train_single_epoch(epoch)
+            # loss = self._train_single_epoch(epoch)
             measure = self._validate_single_epoch(epoch)
+
+            exit()
 
             self.writer.add_scalar(
                 f"Hyper/lr", self.optimizer.param_groups[0]["lr"], epoch

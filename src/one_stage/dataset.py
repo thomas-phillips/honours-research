@@ -9,11 +9,16 @@ from torch.utils.data import Dataset
 
 
 class DeeperShip(Dataset):
-    """A class describing the complete DeeperShip Dataset.
-    """
+    """A class describing the complete DeeperShip Dataset."""
 
-    def __init__(self, metadata_file, target_sample_rate,
-                 num_samples, transform=None, target_transform=None):
+    def __init__(
+        self,
+        metadata_file,
+        target_sample_rate,
+        num_samples,
+        transform=None,
+        target_transform=None,
+    ):
         """Initialize the DeeperShipDataset class.
 
         Args:
@@ -28,7 +33,14 @@ class DeeperShip(Dataset):
         self.target_transform = target_transform
         self.target_sample_rate = target_sample_rate
         self.num_samples = num_samples
-        self.class_mapping = {'tug':0, 'tanker':1, 'cargo':2, 'passengership':3, 'background':4}
+        self.class_mapping = {
+            "tug": 0,
+            "tanker": 1,
+            "cargo": 2,
+            "passengership": 3,
+            "background": 4,
+            "other": 5,
+        }
 
     def __len__(self):
         """Returns the lenght of the dataset.
@@ -54,7 +66,8 @@ class DeeperShip(Dataset):
 
         signal, sr = torchaudio.load(
             audio_sample_path,
-            frame_offset=self.metadata.sub_init.iloc[index]*self.metadata.sample_rate.iloc[index],
+            frame_offset=self.metadata.sub_init.iloc[index]
+            * self.metadata.sample_rate.iloc[index],
             num_frames=self.num_samples,
         )
         signal = self._resample_to_target_sr(signal, sr)
@@ -120,7 +133,7 @@ class DeeperShip(Dataset):
             tensor: The processed signal.
         """
         if signal.shape[1] > self.num_samples:
-            signal = signal[:, :self.num_samples]
+            signal = signal[:, : self.num_samples]
         return signal
 
     def _get_audio_sample_label(self, index):
@@ -136,7 +149,7 @@ class DeeperShip(Dataset):
         return torch.tensor(self.class_mapping[label.lower()])
 
     def _get_metadata(self, metadata_file):
-        """Reads the csv metadata into a dataframe. 
+        """Reads the csv metadata into a dataframe.
 
         Args:
             metadata_file (os.path): The path to the csv file.
@@ -149,15 +162,22 @@ class DeeperShip(Dataset):
 
 
 class DeeperShipFeature(Dataset):
-    """A class describing the output features from DeeperShip Dataset.
-    """
+    """A class describing the output features from DeeperShip Dataset."""
 
-    def __init__(self, root_path, num_of_classes=5, preprocessing = ["mel","gammatone","cqt"]):
+    def __init__(
+        self, root_path, num_of_classes=5, preprocessing=["mel", "gammatone", "cqt"]
+    ):
         if num_of_classes == 5:
-            self.class_mapping = {'tug':0, 'tanker':1, 'cargo':2, 'passengership':3, 'background':4}
+            self.class_mapping = {
+                "tug": 0,
+                "tanker": 1,
+                "cargo": 2,
+                "passengership": 3,
+                "background": 4,
+            }
             exclude_back = False
         elif num_of_classes == 4:
-            self.class_mapping = {'tug':0, 'tanker':1, 'cargo':2, 'passengership':3}
+            self.class_mapping = {"tug": 0, "tanker": 1, "cargo": 2, "passengership": 3}
             exclude_back = True
 
         self.preprocessing = preprocessing
@@ -165,7 +185,9 @@ class DeeperShipFeature(Dataset):
         self.files_list.append([])
         for dir in root_path:
             self.files_list[0].extend(
-                self._get_npy_list(os.path.join(dir, self.preprocessing[0]), exclude_back)
+                self._get_npy_list(
+                    os.path.join(dir, self.preprocessing[0]), exclude_back
+                )
             )
 
         for pre in self.preprocessing[1:]:
@@ -203,7 +225,7 @@ class DeeperShipFeature(Dataset):
 
     def _get_npy_list(self, root_path, exclude_back=False):
         npy_list = []
-        exclude = set(['background'])
+        exclude = set(["background"])
         for root, dirs, files in os.walk(root_path, topdown=True):
             if exclude_back:
                 dirs[:] = [d for d in dirs if d not in exclude]

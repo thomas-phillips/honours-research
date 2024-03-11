@@ -101,6 +101,15 @@ def main():
         optimizer, gamma=lr_schd_gamma
     )
 
+    print(type(train_dataloader))
+    print(type(optimizer))
+    print(type(lr_scheduler))
+
+    images, _ = next(iter(train_dataloader))
+    print(f"{images}")
+
+    exit()
+
     # Initialize metrics.
     accuracy = Accuracy(average="macro", num_classes=num_of_classes)
     accuracy_micro = Accuracy(average="micro", num_classes=num_of_classes)
@@ -132,11 +141,7 @@ def main():
     init_epoch = last_epoch + 1 if last_epoch != 0 else 0
 
     # Create tensorboard writer.
-    writer = SummaryWriter(log_dir=log_dir)
-
-    # Add model graph and hyperparams to the logs.
-    images, _ = next(iter(train_dataloader))
-    writer.add_graph(model, images)
+    # writer = SummaryWriter(log_dir=log_dir)
 
     # Call train routine.
     train_manager = TrainManager(
@@ -150,15 +155,11 @@ def main():
         initial_epoch=init_epoch,
         metrics=metrics,
         reference_metric="Accuracy",
-        writer=writer,
         device=device,
         early_stop=early_stop,
     )
 
     train_manager.start_train(checkpoint_manager)
-
-    # Close tensorboard writer.
-    writer.close()
 
     # Save the last checkpoint model.
     torch.save(model.state_dict(), os.path.join(final_model_dir, "last.pth"))
