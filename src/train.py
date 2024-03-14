@@ -85,9 +85,10 @@ def main():
 
     # Declare the model.
     model = get_model(args_list, device=device)
+    model = model.cuda()
     print(next(model.parameters()).device)
-    # print("Model Architecture")
-    # print(summary(model, (input_channels, 95, 126)))
+    print("Model Architecture")
+    print(summary(model, (input_channels, 95, 126)))
 
     # Initialise loss funtion + optimizer.
     loss_fn = nn.CrossEntropyLoss()
@@ -111,25 +112,23 @@ def main():
     # print(f"{images}")
 
     # Initialize metrics.
-    # accuracy = Accuracy("multiclass", average="macro", num_classes=num_of_classes)
-    # accuracy_micro = Accuracy(average="micro", num_classes=num_of_classes)
-    # accuracy_weight = Accuracy(average="weighted", num_classes=num_of_classes)
-    # precision = Precision(average="macro", num_classes=num_of_classes)
-    # recall = Recall(average="macro", num_classes=num_of_classes)
-    # f1 = F1(average="macro", num_classes=num_of_classes)
-    # confusion_matrix = ConfusionMatrix(num_classes=num_of_classes)
+    accuracy = Accuracy("multiclass", average="macro", num_classes=num_of_classes)
+    accuracy_micro = Accuracy(average="micro", num_classes=num_of_classes)
+    accuracy_weight = Accuracy(average="weighted", num_classes=num_of_classes)
+    precision = Precision(average="macro", num_classes=num_of_classes)
+    recall = Recall(average="macro", num_classes=num_of_classes)
+    f1 = F1(average="macro", num_classes=num_of_classes)
+    confusion_matrix = ConfusionMatrix(num_classes=num_of_classes)
 
-    # metrics = {
-    #     "Accuracy": accuracy,
-    #     "AccuracyMicro": accuracy_micro,
-    #     "AccuracyWeighted": accuracy_weight,
-    #     "Precision": precision,
-    #     "Recall": recall,
-    #     "F1": f1,
-    #     "ConfusionMatrix": confusion_matrix,
-    # }
-
-    metrics = {}
+    metrics = {
+        "Accuracy": accuracy,
+        "AccuracyMicro": accuracy_micro,
+        "AccuracyWeighted": accuracy_weight,
+        "Precision": precision,
+        "Recall": recall,
+        "F1": f1,
+        "ConfusionMatrix": confusion_matrix,
+    }
 
     # Create a checkpoint manager.
     checkpoint_manager = CheckpointManager(
@@ -143,7 +142,6 @@ def main():
     init_epoch = last_epoch + 1 if last_epoch != 0 else 0
 
     # Create tensorboard writer.
-    # writer = SummaryWriter(log_dir=log_dir)
 
     # Call train routine.
     train_manager = TrainManager(
