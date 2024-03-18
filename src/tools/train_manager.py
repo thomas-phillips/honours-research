@@ -65,7 +65,7 @@ class TrainManager:
 
             # calculate loss
             self._efficient_zero_grad(self.model)
-            prediction = self.model(batch_spectrograms.unsqueeze(1).float())
+            prediction = self.model(batch_spectrograms)
             loss = self.loss_fn(prediction, labels)
             train_loss += loss.item()
 
@@ -95,7 +95,7 @@ class TrainManager:
             batch_spectrograms = batch_spectrograms.to(self.device)
             labels = labels.to(self.device)
 
-            prediction = self.model(batch_spectrograms.unsqueeze(1).float())
+            prediction = self.model(batch_spectrograms)
             loss = self.loss_fn(prediction, labels)
             self.current_validation_loss += loss.item()
 
