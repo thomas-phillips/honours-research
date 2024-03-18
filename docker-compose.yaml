@@ -5,16 +5,17 @@ services:
     build:
       context: .
       dockerfile: Python38.Dockerfile
-    command: python3 nauta/train.py config_files/preprocessed.yaml
-    # command: python3 nauta/dataset_generator.py config_files/preprocessing.yaml
+    command: python3 src/train.py config_files/deepershipfeature.yaml
+    # command: python3 src/dataset_generator.py config_files/preprocessing.yaml
     volumes:
       - ${HOME}/dataset/onc:/onc
+      - ${HOME}/results:/results
     # stdin_open: true
     # tty: true
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: 1
-    #           capabilities: [gpu]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
