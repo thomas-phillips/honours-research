@@ -80,35 +80,39 @@ def get_dataset(config):
         num_of_classes = config["model"]["num_of_classes"]
         number_of_samples = sample_rate * config["hyperparameters"]["number_of_samples"]
 
-        train_dataset = SpectrogramDataset(train_dataset_path)
-        validation_dataset = SpectrogramDataset(validation_dataset_path)
+        train_dataset = SpectrogramDataset(
+            train_dataset_path, preprocessings[0], excluded_classes=["other"]
+        )
+        validation_dataset = SpectrogramDataset(
+            validation_dataset_path, preprocessings[0], excluded_classes=["other"]
+        )
 
         train_dataloader = create_data_loader(train_dataset, batch_size=batch_size)
         validation_dataloader = create_data_loader(
             validation_dataset, batch_size=batch_size
         )
 
-        # Get the training and validation.
-        # train_dataset = DeeperShipFeature(
-        #     train_dataset_path,
-        #     num_samples=number_of_samples,
-        #     num_of_classes=num_of_classes,
-        #     preprocessing=preprocessings,
-        # )
-        # print(type(train_dataset))
-        # train_dataloader = create_data_loader(train_dataset, batch_size=batch_size)
-
-        # validation_dataset = DeeperShipFeature(
-        #     validation_dataset_path,
-        #     num_samples=number_of_samples,
-        #     num_of_classes=num_of_classes,
-        #     preprocessing=preprocessings,
-        # )
-        # print(type(validation_dataset))
-        # validation_dataloader = create_data_loader(
-        #     validation_dataset, batch_size=batch_size, shuffle=False
-        # )
         return train_dataloader, validation_dataloader
+        # Get the training and validation.
+        train_dataset = DeeperShipFeature(
+            train_dataset_path,
+            num_samples=number_of_samples,
+            num_of_classes=num_of_classes,
+            preprocessing=preprocessings,
+        )
+        print(type(train_dataset))
+        train_dataloader = create_data_loader(train_dataset, batch_size=batch_size)
+
+        validation_dataset = DeeperShipFeature(
+            validation_dataset_path,
+            num_samples=number_of_samples,
+            num_of_classes=num_of_classes,
+            preprocessing=preprocessings,
+        )
+        print(type(validation_dataset))
+        validation_dataloader = create_data_loader(
+            validation_dataset, batch_size=batch_size, shuffle=False
+        )
     else:
         sample_rate = config["hyperparameters"]["sample_rate"]
         number_of_samples = sample_rate * config["hyperparameters"]["number_of_samples"]
