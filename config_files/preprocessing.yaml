@@ -1,14 +1,7 @@
 hyperparameters:
-  epochs: 50
-  batch_size: 25
-  learning_rate: 0.001
-  lr_schd_gamma: 0.9
   sample_rate: 32000
   number_of_samples: 1
-  interleaved: 0
-
-paths:
-  output_dir: "/preprocessed/"
+  interleaved: 1
 
 optim:
   type: "sgd"
@@ -25,7 +18,7 @@ paths:
   train_metadata: "/onc/07_classified_wav_files/inclusion_4000_exclusion_6000/metadata_1s_train_oversampled.csv"
   validation_metadata: "/onc/07_classified_wav_files/inclusion_4000_exclusion_6000/metadata_1s_validation.csv"
   test_metadata: "/onc/07_classified_wav_files/inclusion_4000_exclusion_6000/metadata_1s_test.csv"
-  output_dir: "/onc/preprocessed2/"
+  output_dir: "/preprocessed_interleaved_version_1/"
 
 preprocessing:
   type: "mel"

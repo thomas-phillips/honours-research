@@ -1,0 +1,28 @@
+hyperparameters:
+  epochs: 40
+  batch_size: 8
+  learning_rate: 0.01
+  lr_schd_gamma: 0.95
+  sample_rate: 32000
+  number_of_samples: 1
+
+optim:
+  type: "adam"
+  early_stop: 0
+
+model:
+  name: "cnncqt"
+  cnn_depth: 0
+  num_of_classes: 5
+  input_channels: 1
+
+paths:
+  output_dir: "/home/dev/results/out/inc4000_resnet_sgd_b8_mel_learning_rate"
+
+dataset:
+  type: "deepershipfeature"
+  train_root_path: "/home/dev/dataset/onc/preprocessed_interleaved/train/"
+  validation_root_path: "/home/dev/dataset/onc/preprocessed_interleaved/validation/"
+  test_root_path: "/home/dev/dataset/onc/preprocessed_interleaved/test/"
+  preprocess:
+    - "mel"
