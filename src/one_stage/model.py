@@ -1,4 +1,5 @@
 from torch import nn
+import torchvision.models as models
 
 
 class FeedForwardNet(nn.Module):
@@ -221,3 +222,91 @@ class ResNet18(nn.Module):
         input = self.fc(input)
 
         return input
+
+
+class VGGNet(nn.Module):
+    def __init__(self, input_channels=1, num_classes=5):
+        super().__init__()
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(
+                in_channels=input_channels,
+                out_channels=16,
+                kernel_size=3,
+                stride=1,
+                padding=2,
+            ),
+            nn.BatchNorm2d(16),
+            nn.LeakyReLU(),
+            nn.MaxPool2d(kernel_size=2),
+        )
+
+        self.conv2 = nn.Sequential(
+            nn.Conv2d(
+                in_channels=16,
+                out_channels=32,
+                kernel_size=3,
+                stride=1,
+                padding=2,
+            ),
+            nn.BatchNorm2d(32),
+            nn.LeakyReLU(),
+            nn.MaxPool2d(kernel_size=2),
+        )
+
+        self.conv3 = nn.Sequential(
+            nn.Conv2d(
+                in_channels=32,
+                out_channels=64,
+                kernel_size=3,
+                stride=1,
+                padding=2,
+            ),
+            nn.BatchNorm2d(64),
+            nn.LeakyReLU(),
+            nn.MaxPool2d(kernel_size=2),
+        )
+
+        self.conv4 = nn.Sequential(
+            nn.Conv2d(
+                in_channels=64,
+                out_channels=128,
+                kernel_size=3,
+                stride=1,
+                padding=2,
+            ),
+            nn.BatchNorm2d(128),
+            nn.LeakyReLU(),
+            nn.MaxPool2d(kernel_size=2),
+        )
+
+        self.flatten = nn.Flatten()
+        self.linear = nn.Linear(128 * 7 * 9, num_classes)
+        self.softmax = nn.Softmax(dim=1)
+
+    def forward(self, input_data):
+        x = self.conv1(input_data)
+        x = self.conv2(x)
+        x = self.conv3(x)
+        x = self.conv4(x)
+        x = self.flatten(x)
+        logits = self.linear(x)
+        predictions = self.softmax(logits)
+        return predictions
+
+
+class CustomResNet18(nn.Module):
+    def __init__(self, input_channels=1, num_classes=5):
+        super(CustomResNet18, self).__init__()
+        resnet = models.resnet18(pretrained=True)
+
+        resnet.conv1 = nn.Conv2d(
+            input_channels, 64, kernel_size=7, stride=2, padding=3, bias=False
+        )
+
+        num_ftrs = resnet.fc.in_features
+        resnet.fc = nn.Linear(num_ftrs, num_classes)
+
+        self.resnet = resnet
+
+    def forward(self, x):
+        return self.resnet(x)
