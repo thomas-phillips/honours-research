@@ -1,7 +1,11 @@
 import math
 from tqdm import tqdm
-
+import boto3
 from tools.utils import plot_confusion_matrix
+from decimal import Decimal
+from datetime import datetime
+import json
+import hashlib
 
 
 class TrainManager:
@@ -20,6 +24,7 @@ class TrainManager:
         writer=None,
         device="cpu",
         early_stop=True,
+        upload_info={},
     ):
 
         self.model = model
@@ -42,6 +47,8 @@ class TrainManager:
         self.early_stop = early_stop
         self.trigger_times = 0
         self.patience = 4
+        self.measurements = []
+        self.upload_info = upload_info
         return
 
     def _efficient_zero_grad(self, model):
@@ -113,6 +120,8 @@ class TrainManager:
         )
         display_values.append(f"Loss: {self.current_validation_loss:.4f}")
 
+        metrics_out = {}
+
         for idx, metric in enumerate(self.metrics):
             value = self.metrics[metric].compute()
             if idx == 0:
@@ -127,21 +136,26 @@ class TrainManager:
                 )
             else:
                 display_values.append(f"{metric}: {value:.4f}")
+                metrics_out[metric] = value.item()
             self.metrics[metric].reset()
 
         print("  ".join(display_values))
 
-        return ref_metric
+        return ref_metric, metrics_out
 
     def start_train(self, checkpoint_manager=None):
+        timestamp = int(datetime.now().timestamp())
         for epoch in range(self.initial_epoch, self.epochs):
             print(f"Epoch {epoch+1}")
             loss = self._train_single_epoch(epoch)
-            measure = self._validate_single_epoch(epoch)
+            measure, metric = self._validate_single_epoch(epoch)
 
             self.lr_scheduler.step()
 
-            print(measure)
+            metric["training_loss"] = loss
+
+            self.measurements.append(metric)
+
             if measure.cpu().detach().numpy() > self.best_measure:
                 self.best_measure = measure.cpu().detach().numpy()
 
@@ -162,5 +176,37 @@ class TrainManager:
                         break
                 else:
                     self.trigger_times = 0
-
         print("Finished training")
+        print(self.measurements)
+        print("Uploading results")
+
+        dynamodb = boto3.resource("dynamodb")
+        table_name = "StorageStack-ResultsTable"
+        table = dynamodb.Table(table_name)
+
+        measurements_str = json.dumps(self.measurements)
+        upload_info_str = json.dumps(self.upload_info)
+        classes_str = json.dumps(self.upload_info["classes"])
+        record_id = hashlib.sha256(
+            f"{measurements_str}{upload_info_str}".encode()
+        ).hexdigest()
+
+        item = {
+            "id": record_id,
+            "timestamp": timestamp,
+            "measurements": measurements_str,
+            "type": "training",
+            "optimiser": self.upload_info["optimiser"],
+            "early_stop": self.upload_info["early_stop"],
+            "model": self.upload_info["model"],
+            "input_channels": self.upload_info["input_channels"],
+            "epochs": self.upload_info["epochs"],
+            "batch_size": self.upload_info["batch_size"],
+            "learning_rate": Decimal(str(self.upload_info["learning_rate"])),
+            "lr_schd_gamma": Decimal(str(self.upload_info["lr_schd_gamma"])),
+            "classes": classes_str,
+            "inclusion": self.upload_info["inclusion"],
+            "exclusion": self.upload_info["exclusion"],
+        }
+
+        table.put_item(Item=item)
