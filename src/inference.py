@@ -9,7 +9,7 @@ from torchmetrics import Accuracy, Precision, Recall, F1, ConfusionMatrix
 from torchsummary import summary
 from tqdm import tqdm
 
-from dataset import get_split_dataloader
+from src.tools.dataset import get_split_dataloader
 from model import get_model
 from tools.utils import plot_confusion_matrix, create_dir
 
