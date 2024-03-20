@@ -185,6 +185,7 @@ def main():
                     "inclusion": z[0],
                     "exclusion": z[1],
                 }
+                print(upload_info)
 
                 # Call train routine.
                 train_manager = TrainManager(
