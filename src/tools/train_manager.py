@@ -25,6 +25,8 @@ class TrainManager:
         device="cpu",
         early_stop=True,
         upload_info={},
+        upload_results=False,
+        few_shot=None,
     ):
 
         self.model = model
@@ -47,8 +49,10 @@ class TrainManager:
         self.early_stop = early_stop
         self.trigger_times = 0
         self.patience = 4
-        self.measurements = []
+        self.measurements = {}
         self.upload_info = upload_info
+        self.upload_results = upload_results
+        self.few_shot = few_shot
         return
 
     def _efficient_zero_grad(self, model):
@@ -154,7 +158,7 @@ class TrainManager:
 
             metric["training_loss"] = loss
 
-            self.measurements.append(metric)
+            self.measurements[epoch + 1] = metric
 
             if measure.cpu().detach().numpy() > self.best_measure:
                 self.best_measure = measure.cpu().detach().numpy()
@@ -177,36 +181,43 @@ class TrainManager:
                 else:
                     self.trigger_times = 0
         print("Finished training")
-        print(self.measurements)
-        print("Uploading results")
 
-        dynamodb = boto3.resource("dynamodb")
-        table_name = "StorageStack-ResultsTable"
-        table = dynamodb.Table(table_name)
+        if self.upload_results:
+            print("Uploading results")
 
-        measurements_str = json.dumps(self.measurements)
-        upload_info_str = json.dumps(self.upload_info)
-        classes_str = json.dumps(self.upload_info["classes"])
-        record_id = hashlib.sha256(
-            f"{measurements_str}{upload_info_str}".encode()
-        ).hexdigest()
+            dynamodb = boto3.resource("dynamodb")
+            table_name = "StorageStack-ResultsTable"
+            table = dynamodb.Table(table_name)
 
-        item = {
-            "id": record_id,
-            "timestamp": timestamp,
-            "measurements": measurements_str,
-            "type": "training",
-            "optimiser": self.upload_info["optimiser"],
-            "early_stop": self.upload_info["early_stop"],
-            "model": self.upload_info["model"],
-            "input_channels": self.upload_info["input_channels"],
-            "epochs": self.upload_info["epochs"],
-            "batch_size": self.upload_info["batch_size"],
-            "learning_rate": Decimal(str(self.upload_info["learning_rate"])),
-            "lr_schd_gamma": Decimal(str(self.upload_info["lr_schd_gamma"])),
-            "classes": classes_str,
-            "inclusion": self.upload_info["inclusion"],
-            "exclusion": self.upload_info["exclusion"],
-        }
+            measurements_str = json.dumps(self.measurements)
+            upload_info_str = json.dumps(self.upload_info)
+            classes_str = json.dumps(self.upload_info["classes"])
+            record_id = hashlib.sha256(
+                f"{measurements_str}{upload_info_str}".encode()
+            ).hexdigest()
 
-        table.put_item(Item=item)
+            item = {
+                "id": record_id,
+                "timestamp": timestamp,
+                "measurements": measurements_str,
+                "type": "training",
+                "optimiser": self.upload_info["optimiser"],
+                "early_stop": self.upload_info["early_stop"],
+                "model": self.upload_info["model"],
+                "input_channels": self.upload_info["input_channels"],
+                "epochs": self.upload_info["epochs"],
+                "batch_size": self.upload_info["batch_size"],
+                "learning_rate": Decimal(str(self.upload_info["learning_rate"])),
+                "lr_schd_gamma": Decimal(str(self.upload_info["lr_schd_gamma"])),
+                "classes": classes_str,
+                "inclusion": self.upload_info["inclusion"],
+                "exclusion": self.upload_info["exclusion"],
+                "few_shot": 0,
+            }
+
+            if self.few_shot is not None:
+                item["few_shot"] = 1
+                item["way"] = len(self.few_shot["way"])
+                item["shot"] = self.few_shot["shot"]
+
+            table.put_item(Item=item)
