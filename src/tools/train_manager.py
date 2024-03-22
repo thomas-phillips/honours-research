@@ -212,6 +212,7 @@ class TrainManager:
                 "classes": classes_str,
                 "inclusion": self.upload_info["inclusion"],
                 "exclusion": self.upload_info["exclusion"],
+                "preprocessing": self.upload_info["preprocessing"],
                 "few_shot": 0,
             }
 

@@ -142,13 +142,22 @@ def train(
         path_info["dataset_base_path"], f"inclusion_{zone[0]}_exclusion_{zone[1]}"
     )
 
-    train_dataloader, validation_dataloader, _ = get_dataset(
-        dataset_path,
-        preprocessing,
-        hyperparameter_info["batch_size"],
-        included_classes=few_shot_info["way"],
-        shot=few_shot_info["shot"],
-    )
+    if few_shot_info is None:
+        train_dataloader, validation_dataloader, _ = get_dataset(
+            dataset_path,
+            preprocessing,
+            hyperparameter_info["batch_size"],
+        )
+    else:
+        train_dataloader, validation_dataloader, _ = get_dataset(
+            dataset_path,
+            preprocessing,
+            hyperparameter_info["batch_size"],
+            included_classes=few_shot_info["way"],
+            shot=few_shot_info["shot"],
+        )
+
+    print(len(train_dataloader.dataset.data))
 
     # Initialise loss funtion + optimizer.
     loss_fn = nn.CrossEntropyLoss()
@@ -216,6 +225,7 @@ def train(
         "classes": train_dataloader.dataset.classes,
         "inclusion": zone[0],
         "exclusion": zone[1],
+        "preprocessing": preprocessing,
     }
     print(upload_info)
 

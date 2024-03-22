@@ -3,6 +3,8 @@ import os
 
 from one_stage.dataset import SpectrogramDataset
 
+CLASSES = ["background", "cargo", "passengership", "tanker", "tug"]
+
 
 def create_data_loader(data, batch_size, shuffle=True):
     """Creates a pytorch dataloader from a Dataset.
@@ -21,7 +23,7 @@ def create_data_loader(data, batch_size, shuffle=True):
 
 
 def get_dataset(
-    data_dir, preprocessing_method, batch_size=25, included_classes=[], shot=None
+    data_dir, preprocessing_method, batch_size=25, included_classes=CLASSES, shot=None
 ):
     """Returns the desired dataloaders for validation and train.
 
