@@ -1,1 +1,4 @@
 
+[submodule "src/maml"]
+	path = src/maml
+	url = git@github.com:thomas-phillips/MAML-Pytorch.git
