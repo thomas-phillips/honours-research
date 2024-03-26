@@ -1,0 +1,3 @@
+[submodule "src/maml"]
+	path = src/maml
+	url = https://github.com/fmu2/PyTorch-MAML.git
