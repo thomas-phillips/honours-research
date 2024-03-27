@@ -74,7 +74,7 @@ class MetaSpectrogramDataset(SpectrogramDataset):
         super().__init__(data_dir, preprocessing_method, included_classes, shot)
         self.n_batch = n_batch
         self.n_episode = n_episode
-        self.n_way = n_way
+        self.n_way = len(self.classes)
         self.n_shot = n_shot
         self.n_query = n_query
         self.catlocs = tuple()
