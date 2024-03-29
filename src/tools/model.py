@@ -1,6 +1,5 @@
 from torch import nn
 from one_stage.model import FeedForwardNet, CNNNetwork, CNNNetworkCQT, ResNet18
-from two_stage.model import CNNVesselNetwork
 
 models_list = {
     "feedforward": FeedForwardNet,
