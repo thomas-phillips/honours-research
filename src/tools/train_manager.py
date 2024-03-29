@@ -6,39 +6,98 @@ from decimal import Decimal
 from datetime import datetime
 import json
 import hashlib
+import copy
+import numpy as np
 
 
 class TrainManager:
     def __init__(
         self,
         model,
-        loss_fn,
-        optimizer,
-        lr_scheduler,
         train_dataloader,
         validation_dataloader,
         epochs,
+        device="cuda",
+        upload_results=False,
+        upload_info={},
+    ) -> None:
+        self.model = model
+        self.train_dataloader = train_dataloader
+        self.validation_dataloader = validation_dataloader
+        self.epochs = epochs
+        self.device = device
+        self.upload_results = upload_results
+        self.upload_info = upload_info
+
+    def train_model(self):
+        print("Starting training...")
+
+    def upload_results_to_dynamodb(self, timestamp, results, **kwargs):
+        dynamodb = boto3.resource("dynamodb")
+        table_name = "StorageStack-ResultsTable"
+        table = dynamodb.Table(table_name)
+
+        upload_info = copy.deepcopy(self.upload_info)
+
+        for key, item in upload_info.items():
+            if isinstance(item, float):
+                upload_info[key] = Decimal(str(item))
+            if isinstance(item, list):
+                upload_info[key] = json.dumps(item)
+
+        upload_info_str = json.dumps(self.upload_info)
+        results_str = json.dumps(results)
+        record_id = hashlib.sha256(
+            f"{results_str}{upload_info_str}".encode()
+        ).hexdigest()
+
+        item = {
+            "id": record_id,
+            "timestamp": timestamp,
+            "model": self.model.name,
+            "measurements": results_str,
+            "type": "training",
+            **kwargs,
+            **upload_info,
+        }
+
+        print(item)
+        # table.put_item(Item=item)
+
+
+class TrainManagerCNN(TrainManager):
+    def __init__(
+        self,
+        model,
+        train_dataloader,
+        validation_dataloader,
+        epochs,
+        loss_fn,
+        optimizer,
+        lr_scheduler,
         initial_epoch=0,
+        early_stop=True,
         metrics={},
         reference_metric="",
-        writer=None,
-        device="cpu",
-        early_stop=True,
-        upload_info={},
+        device="cuda",
         upload_results=False,
-        few_shot=None,
+        upload_info={},
     ):
+        super().__init__(
+            model,
+            train_dataloader,
+            validation_dataloader,
+            epochs,
+            device,
+            upload_results,
+            upload_info,
+        )
 
-        self.model = model
         self.loss_fn = loss_fn
         self.optimizer = optimizer
         self.lr_scheduler = lr_scheduler
-        self.train_dataloader = train_dataloader
-        self.validation_dataloader = validation_dataloader
-        self.device = device
         self.metrics = metrics
         self.reference_metric = reference_metric
-        self.epochs = epochs
         self.initial_epoch = initial_epoch
 
         self.best_measure = 0
@@ -49,10 +108,6 @@ class TrainManager:
         self.early_stop = early_stop
         self.trigger_times = 0
         self.patience = 4
-        self.measurements = {}
-        self.upload_info = upload_info
-        self.upload_results = upload_results
-        self.few_shot = few_shot
         return
 
     def _efficient_zero_grad(self, model):
@@ -147,8 +202,13 @@ class TrainManager:
 
         return ref_metric, metrics_out
 
-    def start_train(self, checkpoint_manager=None):
+    def upload_results_to_dynamodb(self, timestamp, results, **kwargs):
+        return super().upload_results_to_dynamodb(timestamp, results, **kwargs)
+
+    def train_model(self, checkpoint_manager=None):
+        super().train_model()
         timestamp = int(datetime.now().timestamp())
+        results = {}
         for epoch in range(self.initial_epoch, self.epochs):
             print(f"Epoch {epoch+1}")
             loss = self._train_single_epoch(epoch)
@@ -158,7 +218,7 @@ class TrainManager:
 
             metric["training_loss"] = loss
 
-            self.measurements[epoch + 1] = metric
+            results[epoch + 1] = metric
 
             if measure.cpu().detach().numpy() > self.best_measure:
                 self.best_measure = measure.cpu().detach().numpy()
@@ -184,41 +244,69 @@ class TrainManager:
 
         if self.upload_results:
             print("Uploading results")
+            self.upload_results_to_dynamodb(
+                timestamp, results, early_stop=self.early_stop
+            )
 
-            dynamodb = boto3.resource("dynamodb")
-            table_name = "StorageStack-ResultsTable"
-            table = dynamodb.Table(table_name)
 
-            measurements_str = json.dumps(self.measurements)
-            upload_info_str = json.dumps(self.upload_info)
-            classes_str = json.dumps(self.upload_info["classes"])
-            record_id = hashlib.sha256(
-                f"{measurements_str}{upload_info_str}".encode()
-            ).hexdigest()
+class TrainManagerMaML(TrainManager):
+    def __init__(
+        self,
+        model,
+        train_dataloader,
+        validation_dataloader,
+        epochs,
+        device="cuda",
+        upload_results=False,
+        upload_info={},
+    ) -> None:
+        super().__init__(
+            model,
+            train_dataloader,
+            validation_dataloader,
+            epochs,
+            device,
+            upload_results,
+            upload_info,
+        )
 
-            item = {
-                "id": record_id,
-                "timestamp": timestamp,
-                "measurements": measurements_str,
-                "type": "training",
-                "optimiser": self.upload_info["optimiser"],
-                "early_stop": self.upload_info["early_stop"],
-                "model": self.upload_info["model"],
-                "input_channels": self.upload_info["input_channels"],
-                "epochs": self.upload_info["epochs"],
-                "batch_size": self.upload_info["batch_size"],
-                "learning_rate": Decimal(str(self.upload_info["learning_rate"])),
-                "lr_schd_gamma": Decimal(str(self.upload_info["lr_schd_gamma"])),
-                "classes": classes_str,
-                "inclusion": self.upload_info["inclusion"],
-                "exclusion": self.upload_info["exclusion"],
-                "preprocessing": self.upload_info["preprocessing"],
-                "few_shot": 0,
-            }
+    def _validate_model(self) -> list:
+        accs_all_test = []
+        for x_shot, x_qry, y_shot, y_qry in self.validation_dataloader:
+            x_shot, y_shot, x_qry, y_qry = (
+                x_shot.to(self.device),
+                y_shot.to(self.device),
+                x_qry.to(self.device),
+                y_qry.to(self.device),
+            )
 
-            if self.few_shot is not None:
-                item["few_shot"] = 1
-                item["way"] = len(self.few_shot["way"])
-                item["shot"] = self.few_shot["shot"]
+            accs = self.model.finetunning(x_shot, y_shot, x_qry, y_qry)
+            accs_all_test.append(accs)
 
-            table.put_item(Item=item)
+        return accs_all_test
+
+    def train_model(self):
+        for epoch in range(self.epochs + 1):
+            print(f"Epoch: {epoch + 1}")
+            for step, data in enumerate(self.train_dataloader):
+                x_shot, x_qry, y_shot, y_qry = data[0], data[1], data[2], data[3]
+
+                x_shot, x_qry, y_shot, y_qry = (
+                    x_shot.to(self.device),
+                    x_qry.to(self.device),
+                    y_shot.to(self.device),
+                    y_qry.to(self.device),
+                )
+
+                # https://github.com/dragen1860/MAML-Pytorch/issues/41#issuecomment-600604345
+                # accuracy before the first update, accuracy after the first update, accuracies for each update steps (set in args)
+                accs = self.model(x_shot, y_shot, x_qry, y_qry)
+
+                if step % 30 == 0:
+                    print(f"step: {step}, \ttraining accuracy: {accs}")
+
+                if step % 500 == 0:  # evaluation
+                    accs_all_test = self._validate_model()
+
+                    accs = np.array(accs_all_test)
+                    print("test accuracy:", accs)
