@@ -97,6 +97,7 @@ class MetaSpectrogramDataset(SpectrogramDataset):
                 c_shot.append(torch.tensor(np.expand_dims(self.data[idx][0], axis=0)))
             for idx in query_idx:
                 c_query.append(torch.tensor(np.expand_dims(self.data[idx][0], axis=0)))
+
             shot.append(torch.stack(c_shot))
             query.append(torch.stack(c_query))
 
