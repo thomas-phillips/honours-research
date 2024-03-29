@@ -11,10 +11,10 @@ from torchmetrics import Accuracy, Precision, Recall, F1, ConfusionMatrix
 
 from tools.utils import create_dir
 from tools.dataset_loader import get_dataset
-from tools.model import get_model
 from tools.checkpoint import CheckpointManager, Checkpoint
-from tools.train_manager import TrainManager
+from tools.train_manager import TrainManagerCNN, TrainManagerMaML
 from one_stage.model import VGGNet, CustomResNet18
+from one_stage.dataset import MetaSpectrogramDataset
 
 ZONES = [
     (2000, 4000),
@@ -22,23 +22,6 @@ ZONES = [
     (4000, 6000),
 ]
 UPLOAD_RESULTS = True
-
-
-def create_parser():
-    """Create the parser object.
-
-    Returns:
-        parser: The generated parser object with arguments
-    """
-    parser = argparse.ArgumentParser(description="Execute the training routine.")
-
-    parser.add_argument(
-        "config_file",
-        type=str,
-        help="",
-    )
-
-    return parser
 
 
 def main():
@@ -49,8 +32,42 @@ def main():
     random.seed(8)
     np.random.seed(8)
 
-    parser = create_parser()
+    parser = argparse.ArgumentParser(description="Execute the training routine.")
+
+    parser.add_argument(
+        "-c",
+        "--config_file",
+        type=str,
+        help="",
+        required=True,
+    )
+    parser.add_argument(
+        "-m",
+        "--method",
+        type=str,
+        help="",
+        required=True,
+    )
+    parser.add_argument(
+        "-u",
+        "--upload_results",
+        action="store_true",
+    )
+
     args = parser.parse_args()
+
+    if args.method == "cnn":
+        print("CNN was chosen")
+        cnn_method(args)
+    elif args.method == "maml":
+        print("Maml was chosen")
+    else:
+        print("No method provided")
+        exit(1)
+    return
+
+
+def cnn_method(args):
     with open(args.config_file) as file:
         paths = yaml.load(file, Loader=yaml.FullLoader)
 
@@ -84,7 +101,7 @@ def main():
     for z in ZONES:
         for preprocessing in preprocessing_methods:
             for model_data in model_info:
-                train(
+                cnn_train(
                     z,
                     model_data["name"],
                     model_data["input_channels"],
@@ -94,11 +111,11 @@ def main():
                     path_info,
                     early_stop,
                     device,
-                    few_shot_info,
+                    upload_results=args.upload_results,
                 )
 
 
-def train(
+def cnn_train(
     zone,
     model_name,
     input_channels,
@@ -108,19 +125,13 @@ def train(
     path_info,
     early_stop=0,
     device="cuda",
-    few_shot_info=None,
+    upload_results=False,
 ):
 
     output_directory = os.path.join(
         path_info["output_base_path"],
         f"in_{zone[0]}_ex_{zone[1]}_{preprocessing}_{model_name}_{input_channels}_{optimiser_info['type']}_{optimiser_info['early_stop']}",
     )
-
-    if few_shot_info is not None:
-        output_directory = os.path.join(
-            path_info["output_base_path"],
-            f"in_{zone[0]}_ex_{zone[1]}_{preprocessing}_{model_name}_{input_channels}_{optimiser_info['type']}_{optimiser_info['early_stop']}_few-shot_{len(few_shot_info['way'])}_{few_shot_info['shot']}",
-        )
 
     print(output_directory)
 
@@ -129,9 +140,9 @@ def train(
 
     model = None
     if model_name == "resnet18":
-        model = CustomResNet18(input_channels)
+        model = CustomResNet18("resnet18", input_channels)
     elif model_name == "vggnet":
-        model = VGGNet(input_channels)
+        model = VGGNet("vggnet", input_channels)
 
     model = model.cuda()
     print(next(model.parameters()).device)
@@ -142,20 +153,11 @@ def train(
         path_info["dataset_base_path"], f"inclusion_{zone[0]}_exclusion_{zone[1]}"
     )
 
-    if few_shot_info is None:
-        train_dataloader, validation_dataloader, _ = get_dataset(
-            dataset_path,
-            preprocessing,
-            hyperparameter_info["batch_size"],
-        )
-    else:
-        train_dataloader, validation_dataloader, _ = get_dataset(
-            dataset_path,
-            preprocessing,
-            hyperparameter_info["batch_size"],
-            included_classes=few_shot_info["way"],
-            shot=few_shot_info["shot"],
-        )
+    train_dataloader, validation_dataloader, _ = get_dataset(
+        dataset_path,
+        preprocessing,
+        hyperparameter_info["batch_size"],
+    )
 
     print(len(train_dataloader.dataset.data))
 
@@ -215,8 +217,6 @@ def train(
 
     upload_info = {
         "optimiser": optimiser_info["type"],
-        "early_stop": optimiser_info["early_stop"],
-        "model": model_name,
         "input_channels": input_channels,
         "epochs": hyperparameter_info["epochs"],
         "batch_size": hyperparameter_info["batch_size"],
@@ -230,25 +230,24 @@ def train(
     print(upload_info)
 
     # Call train routine.
-    train_manager = TrainManager(
-        model,
-        loss_fn,
-        optimizer,
-        lr_scheduler,
-        train_dataloader,
-        validation_dataloader,
-        hyperparameter_info["epochs"],
+    train_manager = TrainManagerCNN(
+        model=model,
+        loss_fn=loss_fn,
+        optimizer=optimizer,
+        lr_scheduler=lr_scheduler,
+        train_dataloader=train_dataloader,
+        validation_dataloader=validation_dataloader,
+        epochs=hyperparameter_info["epochs"],
         initial_epoch=init_epoch,
         metrics=metrics,
         reference_metric="Accuracy",
         device=device,
         early_stop=early_stop,
+        upload_results=upload_results,
         upload_info=upload_info,
-        upload_results=UPLOAD_RESULTS,
-        few_shot=few_shot_info,
     )
 
-    train_manager.start_train(checkpoint_manager)
+    train_manager.train_model(checkpoint_manager)
 
     # Save the last checkpoint model.
     torch.save(model.state_dict(), os.path.join(final_model_dir, "last.pth"))
@@ -256,6 +255,56 @@ def train(
     # Save the best accuraccy model.
     checkpoint_manager.load_best_checkpoint()
     torch.save(model.state_dict(), os.path.join(final_model_dir, "best.pth"))
+
+
+def maml_train(args):
+    train_data = MetaSpectrogramDataset(
+        "/home/dev/dataset/inclusion_2000_exclusion_4000/train",
+        "cqt",
+        included_classes=["cargo", "passengership", "tanker", "tug"],
+    )
+    val_data = MetaSpectrogramDataset(
+        "/home/dev/dataset/inclusion_2000_exclusion_4000/validation",
+        "cqt",
+        included_classes=["cargo", "passengership", "tanker", "tug"],
+    )
+    config = [
+        ("conv2d", [16, 1, 3, 3, 1, 2]),
+        ("bn", [16]),
+        ("relu", [True]),
+        ("max_pool2d", [2, 2, 0]),
+        ###################
+        ("conv2d", [32, 16, 3, 3, 1, 2]),
+        ("bn", [32]),
+        ("relu", [True]),
+        ("max_pool2d", [2, 2, 0]),
+        ###################
+        ("conv2d", [64, 32, 3, 3, 1, 2]),
+        ("bn", [64]),
+        ("relu", [True]),
+        ("max_pool2d", [2, 2, 0]),
+        ###################
+        ("conv2d", [128, 64, 3, 3, 1, 2]),
+        ("bn", [128]),
+        ("relu", [True]),
+        ("max_pool2d", [2, 2, 0]),
+        ###################
+        ("flatten", []),
+        ("linear", [N_WAY, 128 * 7 * 9]),
+    ]
+
+    args = {
+        "update_lr": 0.01,
+        "meta_lr": 1e-3,
+        "n_way": N_WAY,
+        "k_spt": K_SHOT_SUPPORT,
+        "k_qry": K_SHOT_QUERY,
+        "task_num": 4,
+        "update_step": 5,
+        "update_step_test": 10,
+        "imgsz": (95, 126),
+        "imgc": 1,
+    }
 
 
 if __name__ == "__main__":
