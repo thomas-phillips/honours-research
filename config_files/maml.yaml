@@ -1,11 +1,17 @@
-method: cnn
+method: maml
 upload_results: true
 
 hyperparameters:
-  epochs: 40
-  batch_size: 8
+  epochs: 2
+  batch_size: 200
+  episodes: 4
+  n_shot: 1
+  n_query: 15
+  task_num: 4
+  update_learning_rate: 0.01
   learning_rate: 0.001
-  lr_schd_gamma: 0.95
+  update_step: 5
+  update_step_test: 10
 
 paths:
   dataset_base_path: /home/dev/dataset
@@ -21,7 +27,7 @@ optimiser:
   early_stop: 0
 
 model:
-  - name: resnet18
+  - name: original
     input_channels: 1
   - name: vggnet
     input_channels: 1
