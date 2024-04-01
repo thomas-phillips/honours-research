@@ -1,7 +1,7 @@
 from torch.utils.data import DataLoader
 import os
 
-from one_stage.dataset import SpectrogramDataset
+from resources.dataset import SpectrogramDataset, MaMLSpectrogramDataset
 
 CLASSES = ["background", "cargo", "passengership", "tanker", "tug"]
 
@@ -22,10 +22,11 @@ def create_data_loader(data, batch_size, shuffle=True):
     return loader
 
 
-def get_dataset(
-    data_dir, preprocessing_method, batch_size=25, included_classes=CLASSES, shot=None
+def get_standard_dataset(
+    data_dir, preprocessing_method, batch_size=25, included_classes=CLASSES
 ):
-    """Returns the desired dataloaders for validation and train.
+    """#todo: Update description
+    Returns the desired dataloaders for validation and train.
 
     Args:
         config (dict, required): The dict resulting from the YAML config file.
@@ -35,7 +36,7 @@ def get_dataset(
     """
     train_path = os.path.join(data_dir, "train")
     train_dataset = SpectrogramDataset(
-        train_path, preprocessing_method, included_classes, shot
+        train_path, preprocessing_method, included_classes
     )
 
     validation_path = os.path.join(data_dir, "validation")
@@ -52,5 +53,65 @@ def get_dataset(
         validation_dataset, batch_size=batch_size
     )
     test_dataloader = create_data_loader(test_dataset, batch_size=batch_size)
+
+    return train_dataloader, validation_dataloader, test_dataloader
+
+
+def get_maml_dataset(
+    data_dir,
+    preprocessing_method,
+    n_episode,
+    n_shot,
+    n_query,
+    n_batch,
+    task_num=4,
+    included_classes=CLASSES,
+):
+    """#todo: Update description
+    Returns the desired dataloaders for validation and train.
+
+    Args:
+        config (dict, required): The dict resulting from the YAML config file.
+
+    Returns:
+        DataLoader, DataLoader : The train and the validation dataloaders, respectively.
+    """
+    train_path = os.path.join(data_dir, "train")
+    train_dataset = MaMLSpectrogramDataset(
+        train_path,
+        preprocessing_method,
+        included_classes,
+        n_episode=n_episode,
+        n_batch=n_batch,
+        n_shot=n_shot,
+        n_query=n_query,
+    )
+
+    validation_path = os.path.join(data_dir, "validation")
+    validation_dataset = MaMLSpectrogramDataset(
+        validation_path,
+        preprocessing_method,
+        included_classes,
+        n_episode=n_episode,
+        n_batch=n_batch,
+        n_shot=n_shot,
+        n_query=n_query,
+    )
+
+    test_path = os.path.join(data_dir, "test")
+
+    test_dataset = MaMLSpectrogramDataset(
+        test_path,
+        preprocessing_method,
+        included_classes,
+        n_episode=n_episode,
+        n_batch=n_batch,
+        n_shot=n_shot,
+        n_query=n_query,
+    )
+
+    train_dataloader = create_data_loader(train_dataset, batch_size=task_num)
+    validation_dataloader = create_data_loader(validation_dataset, batch_size=None)
+    test_dataloader = create_data_loader(test_dataset, batch_size=None)
 
     return train_dataloader, validation_dataloader, test_dataloader
