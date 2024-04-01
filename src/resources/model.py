@@ -182,7 +182,7 @@ class ResBlock(nn.Module):
 
 
 class ResNet18(nn.Module):
-    def __init__(self, model_depth=3, out_classes=5, input_channels=3):
+    def __init__(self, input_channels=1, out_classes=5):
         super().__init__()
         self.layer0 = nn.Sequential(
             nn.Conv2d(input_channels, 64, kernel_size=7, stride=2, padding=3),
@@ -225,9 +225,8 @@ class ResNet18(nn.Module):
 
 
 class VGGNet(nn.Module):
-    def __init__(self, name, input_channels=1, num_classes=5):
+    def __init__(self, input_channels=1, num_classes=5):
         super().__init__()
-        self.name = name
         self.conv1 = nn.Sequential(
             nn.Conv2d(
                 in_channels=input_channels,
@@ -296,7 +295,7 @@ class VGGNet(nn.Module):
 
 
 class CustomResNet18(nn.Module):
-    def __init__(self,name, input_channels=1, num_classes=5):
+    def __init__(self, name, input_channels=1, num_classes=5):
         super(CustomResNet18, self).__init__()
         self.name = name
         resnet = models.resnet18(pretrained=True)

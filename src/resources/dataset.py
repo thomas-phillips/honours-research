@@ -58,7 +58,7 @@ class SpectrogramDataset(Dataset):
         return data
 
 
-class MetaSpectrogramDataset(SpectrogramDataset):
+class MaMLSpectrogramDataset(SpectrogramDataset):
     def __init__(
         self,
         data_dir,
@@ -67,7 +67,6 @@ class MetaSpectrogramDataset(SpectrogramDataset):
         shot=None,
         n_batch=200,
         n_episode=4,
-        n_way=5,
         n_shot=1,
         n_query=15,
     ):
