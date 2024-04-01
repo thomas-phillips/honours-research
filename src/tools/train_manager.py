@@ -8,6 +8,7 @@ import json
 import hashlib
 import copy
 import numpy as np
+import pprint
 
 
 class TrainManager:
@@ -54,15 +55,13 @@ class TrainManager:
         item = {
             "id": record_id,
             "timestamp": timestamp,
-            "model": self.model.name,
             "measurements": results_str,
-            "type": "training",
             **kwargs,
             **upload_info,
         }
 
         print(item)
-        # table.put_item(Item=item)
+        table.put_item(Item=item)
 
 
 class TrainManagerCNN(TrainManager):
@@ -286,8 +285,13 @@ class TrainManagerMaML(TrainManager):
         return accs_all_test
 
     def train_model(self):
-        for epoch in range(self.epochs + 1):
+        super().train_model()
+        timestamp = int(datetime.now().timestamp())
+        results = {}
+        for epoch in range(self.epochs):
             print(f"Epoch: {epoch + 1}")
+            results[epoch + 1] = []
+
             for step, data in enumerate(self.train_dataloader):
                 x_shot, x_qry, y_shot, y_qry = data[0], data[1], data[2], data[3]
 
@@ -302,6 +306,10 @@ class TrainManagerMaML(TrainManager):
                 # accuracy before the first update, accuracy after the first update, accuracies for each update steps (set in args)
                 accs = self.model(x_shot, y_shot, x_qry, y_qry)
 
+                results[epoch + 1].append(
+                    {str(step): accs.tolist(), "type": "training"}
+                )
+
                 if step % 30 == 0:
                     print(f"step: {step}, \ttraining accuracy: {accs}")
 
@@ -309,4 +317,11 @@ class TrainManagerMaML(TrainManager):
                     accs_all_test = self._validate_model()
 
                     accs = np.array(accs_all_test)
+                    print(accs.shape)
+                    results[epoch + 1].append(
+                        {str(step): accs.tolist(), "type": "evaluation"}
+                    )
                     print("test accuracy:", accs)
+
+        pprint.pp(results)
+        self.upload_results_to_dynamodb(timestamp, results)

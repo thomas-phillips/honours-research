@@ -10,11 +10,12 @@ from torchsummary import summary
 from torchmetrics import Accuracy, Precision, Recall, F1, ConfusionMatrix
 
 from tools.utils import create_dir
-from tools.dataset_loader import get_dataset
+from tools.dataset_loader import get_standard_dataset, get_maml_dataset
 from tools.checkpoint import CheckpointManager, Checkpoint
 from tools.train_manager import TrainManagerCNN, TrainManagerMaML
-from one_stage.model import VGGNet, CustomResNet18
-from one_stage.dataset import MetaSpectrogramDataset
+from resources.model import VGGNet, ResNet18
+from resources.maml_configurations import make_config
+from maml.meta import Meta
 
 ZONES = [
     (2000, 4000),
@@ -41,34 +42,13 @@ def main():
         help="",
         required=True,
     )
-    parser.add_argument(
-        "-m",
-        "--method",
-        type=str,
-        help="",
-        required=True,
-    )
-    parser.add_argument(
-        "-u",
-        "--upload_results",
-        action="store_true",
-    )
-
     args = parser.parse_args()
 
-    if args.method == "cnn":
-        print("CNN was chosen")
-        cnn_method(args)
-    elif args.method == "maml":
-        print("Maml was chosen")
-    else:
-        print("No method provided")
-        exit(1)
-    return
+    train(args.config_file)
 
 
-def cnn_method(args):
-    with open(args.config_file) as file:
+def train(config_file):
+    with open(config_file) as file:
         paths = yaml.load(file, Loader=yaml.FullLoader)
 
     if torch.cuda.is_available():
@@ -78,44 +58,46 @@ def cnn_method(args):
     print(f"Start training - using {device}\n")
 
     model_info = paths["model"]
-    optimiser_info = paths["optimiser"]
+    optimiser_info = paths.get("optimiser", None)
     hyperparameter_info = paths["hyperparameters"]
     path_info = paths["paths"]
     preprocessing_methods = paths["preprocessing"]
+    method = paths["method"]
+    upload_results = paths["upload_results"]
 
-    few_shot_info = None
-    if "few_shot" in paths:
-        few_shot_info = paths["few_shot"]
-
-    print(
-        model_info,
-        optimiser_info,
-        hyperparameter_info,
-        path_info,
-        preprocessing_methods,
-        sep="\n",
-    )
-
-    early_stop = False if optimiser_info["early_stop"] == 0 else True
+    for key, value in paths.items():
+        print(f"{key}: {value}", sep="\n")
 
     for z in ZONES:
         for preprocessing in preprocessing_methods:
             for model_data in model_info:
-                cnn_train(
-                    z,
-                    model_data["name"],
-                    model_data["input_channels"],
-                    preprocessing,
-                    optimiser_info,
-                    hyperparameter_info,
-                    path_info,
-                    early_stop,
-                    device,
-                    upload_results=args.upload_results,
-                )
+                if method == "cnn":
+                    cnn_method(
+                        z,
+                        model_data["name"],
+                        model_data["input_channels"],
+                        preprocessing,
+                        optimiser_info,
+                        hyperparameter_info,
+                        path_info,
+                        device,
+                        upload_results,
+                    )
+
+                elif method == "maml":
+                    maml_method(
+                        z,
+                        model_data["name"],
+                        model_data["input_channels"],
+                        preprocessing,
+                        hyperparameter_info,
+                        path_info,
+                        device,
+                        upload_results,
+                    )
 
 
-def cnn_train(
+def cnn_method(
     zone,
     model_name,
     input_channels,
@@ -123,7 +105,6 @@ def cnn_train(
     optimiser_info,
     hyperparameter_info,
     path_info,
-    early_stop=0,
     device="cuda",
     upload_results=False,
 ):
@@ -140,9 +121,9 @@ def cnn_train(
 
     model = None
     if model_name == "resnet18":
-        model = CustomResNet18("resnet18", input_channels)
+        model = ResNet18(input_channels)
     elif model_name == "vggnet":
-        model = VGGNet("vggnet", input_channels)
+        model = VGGNet(input_channels)
 
     model = model.cuda()
     print(next(model.parameters()).device)
@@ -153,7 +134,7 @@ def cnn_train(
         path_info["dataset_base_path"], f"inclusion_{zone[0]}_exclusion_{zone[1]}"
     )
 
-    train_dataloader, validation_dataloader, _ = get_dataset(
+    train_dataloader, validation_dataloader, _ = get_standard_dataset(
         dataset_path,
         preprocessing,
         hyperparameter_info["batch_size"],
@@ -218,14 +199,12 @@ def cnn_train(
     upload_info = {
         "optimiser": optimiser_info["type"],
         "input_channels": input_channels,
-        "epochs": hyperparameter_info["epochs"],
-        "batch_size": hyperparameter_info["batch_size"],
-        "learning_rate": hyperparameter_info["learning_rate"],
-        "lr_schd_gamma": hyperparameter_info["lr_schd_gamma"],
         "classes": train_dataloader.dataset.classes,
         "inclusion": zone[0],
         "exclusion": zone[1],
         "preprocessing": preprocessing,
+        "type": "cnn",
+        **hyperparameter_info,
     }
     print(upload_info)
 
@@ -242,7 +221,7 @@ def cnn_train(
         metrics=metrics,
         reference_metric="Accuracy",
         device=device,
-        early_stop=early_stop,
+        early_stop=optimiser_info["early_stop"],
         upload_results=upload_results,
         upload_info=upload_info,
     )
@@ -257,54 +236,65 @@ def cnn_train(
     torch.save(model.state_dict(), os.path.join(final_model_dir, "best.pth"))
 
 
-def maml_train(args):
-    train_data = MetaSpectrogramDataset(
-        "/home/dev/dataset/inclusion_2000_exclusion_4000/train",
-        "cqt",
-        included_classes=["cargo", "passengership", "tanker", "tug"],
-    )
-    val_data = MetaSpectrogramDataset(
-        "/home/dev/dataset/inclusion_2000_exclusion_4000/validation",
-        "cqt",
-        included_classes=["cargo", "passengership", "tanker", "tug"],
-    )
-    config = [
-        ("conv2d", [16, 1, 3, 3, 1, 2]),
-        ("bn", [16]),
-        ("relu", [True]),
-        ("max_pool2d", [2, 2, 0]),
-        ###################
-        ("conv2d", [32, 16, 3, 3, 1, 2]),
-        ("bn", [32]),
-        ("relu", [True]),
-        ("max_pool2d", [2, 2, 0]),
-        ###################
-        ("conv2d", [64, 32, 3, 3, 1, 2]),
-        ("bn", [64]),
-        ("relu", [True]),
-        ("max_pool2d", [2, 2, 0]),
-        ###################
-        ("conv2d", [128, 64, 3, 3, 1, 2]),
-        ("bn", [128]),
-        ("relu", [True]),
-        ("max_pool2d", [2, 2, 0]),
-        ###################
-        ("flatten", []),
-        ("linear", [N_WAY, 128 * 7 * 9]),
-    ]
-
-    args = {
-        "update_lr": 0.01,
-        "meta_lr": 1e-3,
-        "n_way": N_WAY,
-        "k_spt": K_SHOT_SUPPORT,
-        "k_qry": K_SHOT_QUERY,
-        "task_num": 4,
-        "update_step": 5,
-        "update_step_test": 10,
+def maml_method(
+    zone,
+    model_name,
+    input_channels,
+    preprocessing,
+    hyperparameter_info,
+    path_info,
+    device,
+    upload_results=False,
+):
+    maml_config = {
+        "update_lr": hyperparameter_info["update_learning_rate"],
+        "meta_lr": hyperparameter_info["learning_rate"],
+        "n_way": 5,
+        "k_spt": hyperparameter_info["n_shot"],
+        "k_qry": hyperparameter_info["n_query"],
+        "task_num": hyperparameter_info["task_num"],
+        "update_step": hyperparameter_info["update_step"],
+        "update_step_test": hyperparameter_info["update_step_test"],
         "imgsz": (95, 126),
-        "imgc": 1,
+        "imgc": input_channels,
     }
+
+    model_config = make_config(model_name, input_channels, 5)
+    model = Meta(model_config, **maml_config).to(device)
+
+    dataset_path = os.path.join(
+        path_info["dataset_base_path"], f"inclusion_{zone[0]}_exclusion_{zone[1]}"
+    )
+    train_dataloader, validation_dataloader, _ = get_maml_dataset(
+        dataset_path,
+        preprocessing,
+        hyperparameter_info["episodes"],
+        hyperparameter_info["n_shot"],
+        hyperparameter_info["n_query"],
+        hyperparameter_info["batch_size"],
+        hyperparameter_info["task_num"],
+    )
+    upload_info = {
+        "model": model_name,
+        "input_channels": input_channels,
+        "classes": train_dataloader.dataset.classes,
+        "inclusion": zone[0],
+        "exclusion": zone[1],
+        "preprocessing": preprocessing,
+        "type": "maml",
+        **hyperparameter_info,
+    }
+
+    train_mananger = TrainManagerMaML(
+        model,
+        train_dataloader,
+        validation_dataloader,
+        hyperparameter_info["epochs"],
+        upload_results=upload_results,
+        upload_info=upload_info,
+    )
+
+    train_mananger.train_model()
 
 
 if __name__ == "__main__":
