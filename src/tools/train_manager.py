@@ -1,14 +1,14 @@
-import math
 from tqdm import tqdm
-import boto3
-from tools.utils import plot_confusion_matrix
+from tools.utils import plot_confusion_matrix, get_db_connection
 from decimal import Decimal
 from datetime import datetime
 import json
 import hashlib
 import copy
-import numpy as np
 import pprint
+import csv
+import psycopg2
+import torch
 
 
 class TrainManager:
@@ -32,36 +32,6 @@ class TrainManager:
 
     def train_model(self):
         print("Starting training...")
-
-    def upload_results_to_dynamodb(self, timestamp, results, **kwargs):
-        dynamodb = boto3.resource("dynamodb")
-        table_name = "StorageStack-ResultsTable"
-        table = dynamodb.Table(table_name)
-
-        upload_info = copy.deepcopy(self.upload_info)
-
-        for key, item in upload_info.items():
-            if isinstance(item, float):
-                upload_info[key] = Decimal(str(item))
-            if isinstance(item, list):
-                upload_info[key] = json.dumps(item)
-
-        upload_info_str = json.dumps(self.upload_info)
-        results_str = json.dumps(results)
-        record_id = hashlib.sha256(
-            f"{results_str}{upload_info_str}".encode()
-        ).hexdigest()
-
-        item = {
-            "id": record_id,
-            "timestamp": timestamp,
-            "measurements": results_str,
-            **kwargs,
-            **upload_info,
-        }
-
-        print(item)
-        table.put_item(Item=item)
 
 
 class TrainManagerCNN(TrainManager):
@@ -204,7 +174,7 @@ class TrainManagerCNN(TrainManager):
     def upload_results_to_dynamodb(self, timestamp, results, **kwargs):
         return super().upload_results_to_dynamodb(timestamp, results, **kwargs)
 
-    def train_model(self, checkpoint_manager=None):
+    def train_model(self):
         super().train_model()
         timestamp = int(datetime.now().timestamp())
         results = {}
@@ -222,12 +192,6 @@ class TrainManagerCNN(TrainManager):
             if measure.cpu().detach().numpy() > self.best_measure:
                 self.best_measure = measure.cpu().detach().numpy()
 
-            # Save a checkpoint.
-            if checkpoint_manager is not None:
-                checkpoint_manager.save(
-                    epoch, measure=math.floor(self.best_measure * 1000000)
-                )
-
             print("---------------------------")
 
             # Early stopping
@@ -241,11 +205,269 @@ class TrainManagerCNN(TrainManager):
                     self.trigger_times = 0
         print("Finished training")
 
+        pprint.pp(results)
         if self.upload_results:
-            print("Uploading results")
-            self.upload_results_to_dynamodb(
-                timestamp, results, early_stop=self.early_stop
+            self.upload_results_to_db(results)
+
+    def upload_results_to_db(self, results):
+        conn = psycopg2.connect(
+            dbname="honours",
+            user="postgres",
+            password="123456",
+            host="flinders-dev",
+            port="5432",
+        )
+        cur = conn.cursor()
+
+        try:
+            print("Upload info:", self.upload_info)
+            cur.execute(
+                "INSERT INTO model (name, epochs, inclusion, exclusion, input_channels, preprocessing, type) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                (
+                    self.upload_info["model_name"],
+                    self.epochs,
+                    self.upload_info["inclusion"],
+                    self.upload_info["exclusion"],
+                    self.upload_info["input_channels"],
+                    self.upload_info["preprocessing"],
+                    self.upload_info["type"],
+                ),
             )
+
+            cur.execute("SELECT LASTVAL()")
+            model_id = cur.fetchone()
+
+            print(model_id)
+
+            for key, val in results.items():
+                cur.execute(
+                    "INSERT INTO epoch (epoch, model_id) VALUES (%s, %s)",
+                    (key, model_id),
+                )
+                cur.execute("SELECT LASTVAL()")
+                epoch_id = cur.fetchone()
+                for k in val:
+                    cur.execute(
+                        "INSERT INTO cnn_result (value, type, epoch_id) VALUES (%s, %s, %s)",
+                        (val[k], k, epoch_id),
+                    )
+
+            cur.execute(
+                "INSERT INTO cnn_data (learning_rate, lr_schd_gamma, optimiser, early_stop, batch_size, shot, shuffle, model_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                (
+                    self.upload_info["learning_rate"],
+                    self.upload_info["lr_schd_gamma"],
+                    self.upload_info["optimiser"],
+                    self.early_stop,
+                    self.upload_info["batch_size"],
+                    self.upload_info.get("shot", None),
+                    self.upload_info.get("shot", None),
+                    model_id,
+                ),
+            )
+
+            for c in self.upload_info["classes"]:
+                cur.execute(
+                    "INSERT INTO class (name, model_id) VALUES (%s, %s)",
+                    (c, model_id),
+                )
+
+            conn.commit()
+
+        except Exception as e:
+            conn.rollback()
+            print("Transaction rolled back: ", e)
+
+        finally:
+            cur.close()
+            conn.close()
+
+
+class TrainManagerSiamese(TrainManager):
+    def __init__(
+        self,
+        model,
+        train_dataloader,
+        validation_dataloader,
+        epochs,
+        loss_fn,
+        optimizer,
+        lr_scheduler,
+        initial_epoch=0,
+        device="cuda",
+        upload_results=False,
+        upload_info={},
+    ):
+        super().__init__(
+            model,
+            train_dataloader,
+            validation_dataloader,
+            epochs,
+            device,
+            upload_results,
+            upload_info,
+        )
+
+        self.loss_fn = loss_fn
+        self.optimizer = optimizer
+        self.lr_scheduler = lr_scheduler
+        self.initial_epoch = initial_epoch
+        return
+
+    def _efficient_zero_grad(self, model):
+        for param in model.parameters():
+            param.grad = None
+
+    def _train_single_epoch(self, epoch):
+        self.model.train()
+        step = epoch * len(self.train_dataloader)
+        train_loss = 0
+
+        for batch_idx, (first, second, targets) in enumerate(
+            tqdm(
+                self.train_dataloader,
+                desc=f"Train",
+                bar_format="{l_bar}{bar:10}{r_bar}{bar:-10b}",
+            )
+        ):
+            first, second, targets = (
+                first.to("cuda"),
+                second.to("cuda"),
+                targets.to("cuda"),
+            )
+
+            self._efficient_zero_grad(self.model)
+            prediction = self.model(first, second).squeeze()
+            loss = self.loss_fn(prediction, targets)
+            train_loss += loss.item()
+
+            step += 1
+
+            loss.backward()
+            self.optimizer.step()
+
+        train_loss /= len(self.train_dataloader.dataset)
+        print(f"Loss: {train_loss:.4f}")
+        return train_loss
+
+    def _validate_single_epoch(self, epoch):
+        self.model.eval()
+        validation_loss = 0
+        correct = 0
+
+        for batch_idx, (first, second, targets) in enumerate(
+            tqdm(
+                self.validation_dataloader,
+                desc=f"Validation",
+                bar_format="{l_bar}{bar:10}{r_bar}{bar:-10b}",
+            )
+        ):
+            first, second, targets = (
+                first.to("cuda"),
+                second.to("cuda"),
+                targets.to("cuda"),
+            )
+
+            self._efficient_zero_grad(self.model)
+            prediction = self.model(first, second).squeeze()
+            loss = self.loss_fn(prediction, targets)
+            validation_loss += loss.item()
+
+            pred = torch.where(prediction > 0.5, 1, 0)
+            correct += pred.eq(targets.view_as(pred)).sum().item()
+
+            loss.backward()
+            self.optimizer.step()
+
+        validation_loss /= len(self.validation_dataloader.dataset)
+        accuracy = correct / len(self.validation_dataloader.dataset)
+        print("Correct", correct)
+
+        print(f"Validation Loss: {validation_loss:.4f}, Accuracy: {accuracy}")
+        return validation_loss, accuracy
+
+    def train_model(self):
+        super().train_model()
+        timestamp = int(datetime.now().timestamp())
+        results = {}
+
+        for epoch in range(self.initial_epoch, self.epochs):
+            print(f"Epoch {epoch + 1}")
+            loss = self._train_single_epoch(epoch)
+            validation_loss, accuracy = self._validate_single_epoch(epoch)
+
+            self.lr_scheduler.step()
+
+            results[epoch + 1] = {"training_loss": loss, "accuracy": accuracy}
+
+            print("---------------------------")
+
+        print("Finished training")
+
+        pprint.pp(results)
+        if self.upload_results:
+            self.upload_results_to_db(results)
+
+    def upload_results_to_db(self, results):
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        try:
+            print("Upload info:", self.upload_info)
+            cur.execute(
+                "INSERT INTO model (name, epochs, inclusion, exclusion, input_channels, preprocessing, type) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                (
+                    self.upload_info["model_name"],
+                    self.epochs,
+                    self.upload_info["inclusion"],
+                    self.upload_info["exclusion"],
+                    self.upload_info["input_channels"],
+                    self.upload_info["preprocessing"],
+                    self.upload_info["type"],
+                ),
+            )
+
+            cur.execute("SELECT LASTVAL()")
+            model_id = cur.fetchone()
+
+            print(model_id)
+
+            for key, val in results.items():
+                cur.execute(
+                    "INSERT INTO epoch (epoch, model_id) VALUES (%s, %s)",
+                    (key, model_id),
+                )
+                cur.execute("SELECT LASTVAL()")
+                epoch_id = cur.fetchone()
+                for k in val:
+                    cur.execute(
+                        "INSERT INTO cnn_result (value, type, epoch_id) VALUES (%s, %s, %s)",
+                        (val[k], k, epoch_id),
+                    )
+
+            cur.execute(
+                "INSERT INTO cnn_data (learning_rate, lr_schd_gamma, optimiser, early_stop, batch_size, shot, shuffle, model_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                (
+                    self.upload_info["learning_rate"],
+                    self.upload_info["lr_schd_gamma"],
+                    self.upload_info["optimiser"],
+                    0,
+                    self.upload_info["batch_size"],
+                    self.upload_info.get("shot", None),
+                    self.upload_info.get("shuffle", None),
+                    model_id,
+                ),
+            )
+
+            conn.commit()
+
+        except Exception as e:
+            conn.rollback()
+            print("Transaction rolled back: ", e)
+
+        finally:
+            cur.close()
+            conn.close()
 
 
 class TrainManagerMaML(TrainManager):
@@ -272,6 +494,7 @@ class TrainManagerMaML(TrainManager):
     def _validate_model(self) -> list:
         accs_all_test = []
         for x_shot, x_qry, y_shot, y_qry in self.validation_dataloader:
+            # print(x_shot.shape, x_qry.shape, y_shot.shape, y_qry.shape)
             x_shot, y_shot, x_qry, y_qry = (
                 x_shot.to(self.device),
                 y_shot.to(self.device),
@@ -280,7 +503,14 @@ class TrainManagerMaML(TrainManager):
             )
 
             accs = self.model.finetunning(x_shot, y_shot, x_qry, y_qry)
-            accs_all_test.append(accs)
+            accs_dict = {}
+            for index, acc in enumerate(accs.tolist()):
+                if index == 0:
+                    accs_dict["before"] = acc
+                else:
+                    accs_dict[index] = acc
+
+            accs_all_test.append(accs_dict)
 
         return accs_all_test
 
@@ -306,22 +536,108 @@ class TrainManagerMaML(TrainManager):
                 # accuracy before the first update, accuracy after the first update, accuracies for each update steps (set in args)
                 accs = self.model(x_shot, y_shot, x_qry, y_qry)
 
+                accs_dict = {}
+                for index, acc in enumerate(accs.tolist()):
+                    accs_dict[index] = acc
+
+                # results[epoch + 1].append({step: accs.tolist(), "type": "training"})
                 results[epoch + 1].append(
-                    {str(step): accs.tolist(), "type": "training"}
+                    {"accuracies": accs_dict, "type": "training", "step": step}
                 )
 
                 if step % 30 == 0:
                     print(f"step: {step}, \ttraining accuracy: {accs}")
 
-                if step % 500 == 0:  # evaluation
-                    accs_all_test = self._validate_model()
+                # if step % 500 == 0:  # evaluation
+                #     accs_all_test = self._validate_model()
 
-                    accs = np.array(accs_all_test)
-                    print(accs.shape)
-                    results[epoch + 1].append(
-                        {str(step): accs.tolist(), "type": "evaluation"}
-                    )
-                    print("test accuracy:", accs)
+                # results[epoch + 1].append(
+                #     {
+                #         "accuracies": accs_all_test,
+                #         "type": "evaluation",
+                #         "step": step,
+                #     }
+                # )
+                # print("test accuracy:", accs)
+                # print("test accuracy:", accs_all_test[0])
+                print(f"Step: {step}")
 
         pprint.pp(results)
-        self.upload_results_to_dynamodb(timestamp, results)
+        if self.upload_results:
+            self.upload_results_to_db(results)
+
+    def upload_results_to_db(self, results):
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        try:
+            print("Upload info:", self.upload_info)
+            cur.execute(
+                "INSERT INTO model (name, epochs, inclusion, exclusion, input_channels, preprocessing, type) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                (
+                    self.upload_info["model"]["name"],
+                    self.epochs,
+                    self.upload_info["inclusion"],
+                    self.upload_info["exclusion"],
+                    self.upload_info["input_channels"],
+                    self.upload_info["preprocessing"],
+                    self.upload_info["type"],
+                ),
+            )
+
+            cur.execute("SELECT LASTVAL()")
+            model_id = cur.fetchone()
+
+            print(model_id)
+
+            for key, val in results.items():
+                cur.execute(
+                    "INSERT INTO epoch (epoch, model_id) VALUES (%s, %s)",
+                    (key, model_id),
+                )
+                cur.execute("SELECT LASTVAL()")
+                epoch_id = cur.fetchone()
+                for s in val:
+                    cur.execute(
+                        "INSERT INTO maml_step (step, type, epoch_id) VALUES (%s, %s, %s)",
+                        (s["step"], s["type"], epoch_id),
+                    )
+                    cur.execute("SELECT LASTVAL()")
+                    step_id = cur.fetchone()
+
+                    for i, acc in s["accuracies"].items():
+                        cur.execute(
+                            "INSERT INTO maml_update_acc (update, accuracy, maml_step_id) VALUES (%s, %s, %s)",
+                            (i, acc, step_id),
+                        )
+
+            cur.execute(
+                "INSERT INTO maml_data (update_lr, meta_lr, n_way, k_spt, k_qry, task_num, update_step, update_step_test, model_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                (
+                    self.upload_info["update_learning_rate"],
+                    self.upload_info["learning_rate"],
+                    5,
+                    self.upload_info["n_shot"],
+                    self.upload_info["n_query"],
+                    self.upload_info["task_num"],
+                    self.upload_info["update_step"],
+                    self.upload_info["update_step_test"],
+                    model_id,
+                ),
+            )
+
+            for c in self.upload_info["classes"]:
+                cur.execute(
+                    "INSERT INTO class (name, model_id) VALUES (%s, %s)",
+                    (c, model_id),
+                )
+
+            # conn.commit()
+
+        except Exception as e:
+            conn.rollback()
+            print("Transaction rolled back: ", e)
+
+        finally:
+            cur.close()
+            conn.close()
