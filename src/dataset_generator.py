@@ -5,7 +5,16 @@ import numpy as np
 import torchaudio
 from tqdm import tqdm
 
-FILTERS = ["mel", "cqt", "gammatone"]
+FILTERS = [
+    "mel",
+    "cqt",
+    "gammatone",
+    "stft",
+    "combined1",
+    "combined2",
+    "combined3",
+    "combined4",
+]
 CLASSES = ["background", "cargo", "passengership", "tanker", "tug"]
 
 
@@ -29,6 +38,7 @@ def preprocess_dataset(dataset_dir, target_sample_rate=32000):
     transformation_mel = get_preprocessing_layer("mel", target_sample_rate)
     transformation_cqt = get_preprocessing_layer("cqt", target_sample_rate)
     transformation_gamma = get_preprocessing_layer("gammatone", target_sample_rate)
+    transformation_stft = get_preprocessing_layer("stft", target_sample_rate)
 
     for f in FILTERS:
         filter_path = dataset_dir.replace("audio", f)
@@ -67,6 +77,29 @@ def preprocess_dataset(dataset_dir, target_sample_rate=32000):
 
                 img_gamma = transformation_gamma(audio).cpu().numpy()[0]
                 np.save(original_path_stripped.replace("audio", "gammatone"), img_gamma)
+
+                img_stft = transformation_stft(audio).cpu().numpy()[0]
+                np.save(original_path_stripped.replace("audio", "stft"), img_stft)
+
+                img_combined1 = np.stack((img_mel, img_cqt, img_gamma))
+                np.save(
+                    original_path_stripped.replace("audio", "combined1"), img_combined1
+                )
+
+                img_combined2 = np.stack((img_mel, img_cqt, img_stft))
+                np.save(
+                    original_path_stripped.replace("audio", "combined2"), img_combined2
+                )
+
+                img_combined3 = np.stack((img_mel, img_stft, img_gamma))
+                np.save(
+                    original_path_stripped.replace("audio", "combined3"), img_combined3
+                )
+
+                img_combined4 = np.stack((img_cqt, img_stft, img_gamma))
+                np.save(
+                    original_path_stripped.replace("audio", "combined4"), img_combined4
+                )
 
                 pbar.update(1)
 

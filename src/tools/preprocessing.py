@@ -185,10 +185,30 @@ def define_cqt_spectrogram(sample_rate):
     return cqt_spectrogram
 
 
+def define_stft_spectrogram(sample_rate):
+    stft_spectrogram = Spectrogram.STFT(
+        sr=sample_rate,
+        n_fft=N_FFT,
+        freq_bins=FREQ_BINS,
+        hop_length=HOP_LENGTH,
+        window="hann",
+        center=True,
+        pad_mode="reflect",
+        fmin=FMIN,
+        fmax=FMAX,
+        trainable=False,
+        verbose=False,
+        output_format="Magnitude",
+    )
+
+    return stft_spectrogram
+
+
 _pre_processing_layers = {
     "mel": define_mel_spectrogram,
     "gammatone": define_gamma_spectrogram,
     "cqt": define_cqt_spectrogram,
+    "stft": define_stft_spectrogram,
 }
 
 
