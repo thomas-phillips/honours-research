@@ -1,153 +1,6 @@
 from torch import nn
 import torchvision.models as models
-
-
-class FeedForwardNet(nn.Module):
-    """The standard FC approach to the Underwater
-    Classification problem.
-    """
-
-    def __init__(self, model_depth=1, input_channels=1):
-        super().__init__()
-        self.flatten = nn.Flatten()
-        self.dense_layers = nn.Sequential(
-            nn.Linear(64 * 63, 256), nn.ReLU(), nn.Linear(256, 5)
-        )
-        self.softmax = nn.Softmax(dim=1)
-
-    def forward(self, input_data):
-        x = self.flatten(input_data)
-        logits = self.dense_layers(x)
-        predictions = self.softmax(logits)
-        return predictions
-
-
-class CNNNetwork(nn.Module):
-    """The standard CNN approach to the Underwater
-    Classification problem.
-    """
-
-    def __init__(self, model_depth=3, out_classes=5, input_channels=3):
-        super().__init__()
-        self.depth = model_depth
-
-        self.conv1 = nn.Sequential(
-            nn.Conv2d(
-                in_channels=input_channels,
-                out_channels=16,
-                kernel_size=3,
-                stride=1,
-                padding=2,
-            ),
-            nn.BatchNorm2d(16),
-            nn.LeakyReLU(),
-            nn.MaxPool2d(kernel_size=2),
-        )
-        self.conv2 = nn.Sequential(
-            nn.Conv2d(
-                in_channels=16, out_channels=32, kernel_size=3, stride=1, padding=2
-            ),
-            nn.BatchNorm2d(32),
-            nn.LeakyReLU(),
-            nn.MaxPool2d(kernel_size=2),
-        )
-        self.conv3 = nn.Sequential(
-            nn.Conv2d(
-                in_channels=32, out_channels=64, kernel_size=3, stride=1, padding=2
-            ),
-            nn.BatchNorm2d(64),
-            nn.LeakyReLU(),
-            nn.MaxPool2d(kernel_size=2),
-        )
-        self.conv4 = nn.Sequential(
-            nn.Conv2d(
-                in_channels=64, out_channels=128, kernel_size=3, stride=1, padding=2
-            ),
-            nn.BatchNorm2d(128),
-            nn.LeakyReLU(),
-            nn.MaxPool2d(kernel_size=2),
-        )
-
-        linear_dim = 0
-        if self.depth == 3:
-            self.conv_layers = [self.conv2, self.conv3]
-            linear_dim = 64 * 9 * 9
-        elif self.depth == 4:
-            self.conv_layers = [self.conv2, self.conv3, self.conv4]
-            # linear_dim = 128 * 5 * 5
-            linear_dim = 128 * 7 * 9  # best until now
-
-        self.linear = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(linear_dim, out_classes, bias=False),
-            nn.Dropout(p=0.1),
-            nn.LeakyReLU(),
-        )
-        self.softmax = nn.Softmax(dim=1)
-
-    def forward(self, input_data):
-
-        x = self.conv1(input_data)
-        for layer in self.conv_layers:
-            x = layer(x)
-        logits = self.linear(x)
-        predictions = self.softmax(logits)
-        return predictions
-
-
-class CNNNetworkCQT(nn.Module):
-    """The optimized CNN approach to the Underwater
-    Classification problem using CQT.
-    """
-
-    def __init__(self, model_depth=0, input_channels=1, out_classes=5):
-        super().__init__()
-        # 4 conv blocks / flatten / linear / softmax
-        self.conv1 = nn.Sequential(
-            nn.Conv2d(
-                in_channels=input_channels,
-                out_channels=16,
-                kernel_size=3,
-                stride=1,
-                padding=2,
-            ),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2),
-        )
-        self.conv2 = nn.Sequential(
-            nn.Conv2d(
-                in_channels=16, out_channels=32, kernel_size=3, stride=1, padding=2
-            ),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2),
-        )
-        self.conv3 = nn.Sequential(
-            nn.Conv2d(
-                in_channels=32, out_channels=64, kernel_size=3, stride=1, padding=2
-            ),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2),
-        )
-        self.conv4 = nn.Sequential(
-            nn.Conv2d(
-                in_channels=64, out_channels=128, kernel_size=3, stride=1, padding=2
-            ),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2),
-        )
-        self.flatten = nn.Flatten()
-        self.linear = nn.Linear(128 * 7 * 9, out_classes)
-        self.softmax = nn.Softmax(dim=1)
-
-    def forward(self, input_data):
-        x = self.conv1(input_data)
-        x = self.conv2(x)
-        x = self.conv3(x)
-        x = self.conv4(x)
-        x = self.flatten(x)
-        logits = self.linear(x)
-        predictions = self.softmax(logits)
-        return predictions
+import torch
 
 
 class ResBlock(nn.Module):
@@ -294,10 +147,9 @@ class VGGNet(nn.Module):
         return predictions
 
 
-class CustomResNet18(nn.Module):
-    def __init__(self, name, input_channels=1, num_classes=5):
-        super(CustomResNet18, self).__init__()
-        self.name = name
+class ResNet18Transfer(nn.Module):
+    def __init__(self, input_channels=1, num_classes=5):
+        super(ResNet18Transfer, self).__init__()
         resnet = models.resnet18(pretrained=True)
 
         resnet.conv1 = nn.Conv2d(
@@ -311,3 +163,67 @@ class CustomResNet18(nn.Module):
 
     def forward(self, x):
         return self.resnet(x)
+
+
+class VGGNet16Transfer(nn.Module):
+    def __init__(self, input_channels=1, num_classes=5):
+        super(VGGNet16Transfer, self).__init__()
+        self.vgg16 = models.vgg16(pretrained=True)
+
+        self.vgg16.features[0] = nn.Conv2d(input_channels, 64, kernel_size=3, padding=1)
+
+        for param in self.parameters():
+            param.requires_grad = False
+
+        num_features = self.vgg16.classifier[6].in_features
+        self.vgg16.classifier[6] = nn.Linear(num_features, num_classes)
+
+    def forward(self, x):
+        return self.vgg16(x)
+
+
+class SiameseNetworkResNet18(nn.Module):
+    def __init__(self, input_channels=1, num_classes=2):
+        super(SiameseNetworkResNet18, self).__init__()
+        self.resnet = ResNet18(input_channels=input_channels, out_classes=num_classes)
+        self.fc_in_features = self.resnet.fc.in_features
+
+        self.resnet = nn.Sequential(*(list(self.resnet.children())[:-1]))
+
+        # add linear layers to compare between the features of the two images
+        self.fc = nn.Sequential(
+            nn.Linear(self.fc_in_features * 2, 256),
+            nn.ReLU(inplace=True),
+            nn.Linear(256, 1),
+        )
+
+        self.sigmoid = nn.Sigmoid()
+
+        # initialize the weights
+        self.fc.apply(self.init_weights)
+
+    def init_weights(self, m):
+        if isinstance(m, nn.Linear):
+            torch.nn.init.xavier_uniform_(m.weight)
+            m.bias.data.fill_(0.01)
+
+    def forward_once(self, x):
+        output = self.resnet(x)
+        output = output.view(output.size()[0], -1)
+        return output
+
+    def forward(self, input1, input2):
+        # get two images' features
+        output1 = self.forward_once(input1)
+        output2 = self.forward_once(input2)
+
+        # concatenate both images' features
+        output = torch.cat((output1, output2), 1)
+
+        # pass the concatenation to the linear layers
+        output = self.fc(output)
+
+        # pass the out of the linear layers to sigmoid layer
+        output = self.sigmoid(output)
+
+        return output
