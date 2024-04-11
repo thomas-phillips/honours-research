@@ -1,7 +1,11 @@
 from torch.utils.data import DataLoader
 import os
 
-from resources.dataset import SpectrogramDataset, MaMLSpectrogramDataset
+from resources.dataset import (
+    SpectrogramDataset,
+    MaMLSpectrogramDataset,
+    FewShotSpectrogramDataset,
+)
 
 CLASSES = ["background", "cargo", "passengership", "tanker", "tug"]
 
@@ -23,7 +27,13 @@ def create_data_loader(data, batch_size, shuffle=True):
 
 
 def get_standard_dataset(
-    data_dir, preprocessing_method, batch_size=25, included_classes=CLASSES
+    data_dir,
+    preprocessing_method,
+    batch_size=25,
+    included_classes=None,
+    shot=0,
+    shuffle=False,
+    siamese=False,
 ):
     """#todo: Update description
     Returns the desired dataloaders for validation and train.
@@ -35,18 +45,47 @@ def get_standard_dataset(
         DataLoader, DataLoader : The train and the validation dataloaders, respectively.
     """
     train_path = os.path.join(data_dir, "train")
-    train_dataset = SpectrogramDataset(
-        train_path, preprocessing_method, included_classes
-    )
-
     validation_path = os.path.join(data_dir, "validation")
-    validation_dataset = SpectrogramDataset(
-        validation_path, preprocessing_method, included_classes
-    )
-
     test_path = os.path.join(data_dir, "test")
 
-    test_dataset = SpectrogramDataset(test_path, preprocessing_method, included_classes)
+    if included_classes == None:
+        included_classes = CLASSES
+
+    train_dataset, validation_dataset, test_dataset = None, None, None
+
+    if shot:
+        train_dataset = FewShotSpectrogramDataset(
+            train_path, preprocessing_method, included_classes, shot, shuffle, siamese
+        )
+
+        validation_dataset = FewShotSpectrogramDataset(
+            validation_path,
+            preprocessing_method,
+            included_classes,
+            shot,
+            shuffle,
+            siamese,
+        )
+
+        test_dataset = FewShotSpectrogramDataset(
+            test_path, preprocessing_method, included_classes, shot, shuffle, siamese
+        )
+
+    else:
+        train_dataset = SpectrogramDataset(
+            train_path, preprocessing_method, included_classes, siamese
+        )
+
+        validation_dataset = SpectrogramDataset(
+            validation_path,
+            preprocessing_method,
+            included_classes,
+            siamese,
+        )
+
+        test_dataset = SpectrogramDataset(
+            test_path, preprocessing_method, included_classes, siamese
+        )
 
     train_dataloader = create_data_loader(train_dataset, batch_size=batch_size)
     validation_dataloader = create_data_loader(
