@@ -2,10 +2,10 @@ method: maml
 upload_results: true
 
 hyperparameters:
-  epochs: 2
+  epochs: 40
   batch_size: 200
   episodes: 4
-  n_shot: 1
+  n_shot: 5
   n_query: 15
   task_num: 4
   update_learning_rate: 0.01
@@ -15,12 +15,24 @@ hyperparameters:
 
 paths:
   dataset_base_path: /home/dev/dataset
-  output_base_path: /home/dev/results
 
 preprocessing:
-  - mel
-  - cqt
-  - gammatone
+  - name: mel
+    channels: 1
+  - name: cqt
+    channels: 1
+  - name: gammatone
+    channels: 1
+  - name: stft
+    channels: 1
+  - name: combined1
+    channels: 3
+  - name: combined2
+    channels: 3
+  - name: combined3
+    channels: 3
+  - name: combined4
+    channels: 3
 
 optimiser:
   type: sgd
@@ -28,6 +40,4 @@ optimiser:
 
 model:
   - name: original
-    input_channels: 1
   - name: vggnet
-    input_channels: 1

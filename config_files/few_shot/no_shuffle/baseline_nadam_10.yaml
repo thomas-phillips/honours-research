@@ -1,0 +1,41 @@
+method: cnn
+upload_results: true
+
+hyperparameters:
+  epochs: 40
+  batch_size: 8
+  learning_rate: 0.001
+  lr_schd_gamma: 0.95
+  shot: 10
+  shuffle: False
+
+paths:
+  dataset_base_path: /home/dev/dataset
+
+preprocessing:
+  - name: mel
+    channels: 1
+  - name: cqt
+    channels: 1
+  - name: gammatone
+    channels: 1
+  - name: stft
+    channels: 1
+  - name: combined1
+    channels: 3
+  - name: combined2
+    channels: 3
+  - name: combined3
+    channels: 3
+  - name: combined4
+    channels: 3
+
+optimiser:
+  type: nadam
+  early_stop: 0
+
+model:
+  - resnet18
+  - vggnet16
+  - resnet18_transfer
+  - vggnet16_transfer

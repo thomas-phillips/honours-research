@@ -1,0 +1,31 @@
+method: siamese
+upload_results: true
+
+hyperparameters:
+  epochs: 100
+  batch_size: 8
+  learning_rate: 0.01
+  lr_schd_gamma: 0.95
+  shot: 15
+  shuffle: true
+  siamese: true
+
+paths:
+  dataset_base_path: /home/dev/dataset
+
+preprocessing:
+  - name: mel
+    channels: 1
+  - name: cqt
+    channels: 1
+  - name: gammatone
+    channels: 1
+  - name: combined
+    channels: 3
+
+optimiser:
+  type: sgd
+  early_stop: 0
+
+model:
+  - siamese_resnet18
