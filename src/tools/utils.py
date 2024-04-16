@@ -115,3 +115,17 @@ def get_db_connection():
     )
 
     return conn
+
+
+def query_database(query):
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute(query)
+    columns = [desc[0] for desc in cur.description]
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return columns, rows
