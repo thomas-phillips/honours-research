@@ -55,11 +55,7 @@ def get_standard_dataset(
 
     if shot:
         train_dataset = FewShotSpectrogramDataset(
-            train_path, preprocessing_method, included_classes, shot, shuffle, siamese
-        )
-
-        validation_dataset = FewShotSpectrogramDataset(
-            validation_path,
+            train_path,
             preprocessing_method,
             included_classes,
             shot,
@@ -67,30 +63,45 @@ def get_standard_dataset(
             siamese,
         )
 
-        test_dataset = FewShotSpectrogramDataset(
-            test_path, preprocessing_method, included_classes, shot, shuffle, siamese
-        )
+        # validation_dataset = FewShotSpectrogramDataset(
+        #     validation_path,
+        #     preprocessing_method,
+        #     included_classes,
+        # )
+
+        # test_dataset = FewShotSpectrogramDataset(
+        #     test_path,
+        #     preprocessing_method,
+        #     included_classes,
+        #     shot,
+        #     shuffle,
+        #     siamese,
+        # )
 
     else:
         train_dataset = SpectrogramDataset(
-            train_path, preprocessing_method, included_classes, siamese
-        )
-
-        validation_dataset = SpectrogramDataset(
-            validation_path,
+            train_path,
             preprocessing_method,
             included_classes,
             siamese,
         )
 
-        test_dataset = SpectrogramDataset(
-            test_path, preprocessing_method, included_classes, siamese
-        )
+    validation_dataset = SpectrogramDataset(
+        validation_path,
+        preprocessing_method,
+        included_classes,
+        siamese,
+    )
+
+    test_dataset = SpectrogramDataset(
+        test_path,
+        preprocessing_method,
+        included_classes,
+        siamese,
+    )
 
     train_dataloader = create_data_loader(train_dataset, batch_size=batch_size)
-    validation_dataloader = create_data_loader(
-        validation_dataset, batch_size=batch_size
-    )
+    validation_dataloader = create_data_loader(validation_dataset, batch_size=25)
     test_dataloader = create_data_loader(test_dataset, batch_size=batch_size)
 
     return train_dataloader, validation_dataloader, test_dataloader

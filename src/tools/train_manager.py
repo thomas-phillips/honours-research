@@ -210,13 +210,7 @@ class TrainManagerCNN(TrainManager):
             self.upload_results_to_db(results)
 
     def upload_results_to_db(self, results):
-        conn = psycopg2.connect(
-            dbname="honours",
-            user="postgres",
-            password="123456",
-            host="flinders-dev",
-            port="5432",
-        )
+        conn = get_db_connection()
         cur = conn.cursor()
 
         try:
@@ -261,7 +255,7 @@ class TrainManagerCNN(TrainManager):
                     self.early_stop,
                     self.upload_info["batch_size"],
                     self.upload_info.get("shot", None),
-                    self.upload_info.get("shot", None),
+                    self.upload_info.get("shuffle", None),
                     model_id,
                 ),
             )
@@ -506,7 +500,7 @@ class TrainManagerMaML(TrainManager):
             accs_dict = {}
             for index, acc in enumerate(accs.tolist()):
                 if index == 0:
-                    accs_dict["before"] = acc
+                    accs_dict[0] = acc
                 else:
                     accs_dict[index] = acc
 
@@ -532,6 +526,7 @@ class TrainManagerMaML(TrainManager):
                     y_qry.to(self.device),
                 )
 
+                print(f"Step: {step}")
                 # https://github.com/dragen1860/MAML-Pytorch/issues/41#issuecomment-600604345
                 # accuracy before the first update, accuracy after the first update, accuracies for each update steps (set in args)
                 accs = self.model(x_shot, y_shot, x_qry, y_qry)
@@ -548,19 +543,18 @@ class TrainManagerMaML(TrainManager):
                 if step % 30 == 0:
                     print(f"step: {step}, \ttraining accuracy: {accs}")
 
-                # if step % 500 == 0:  # evaluation
-                #     accs_all_test = self._validate_model()
+                if step == 99:  # evaluation
+                    accs_all_test = self._validate_model()
 
-                # results[epoch + 1].append(
-                #     {
-                #         "accuracies": accs_all_test,
-                #         "type": "evaluation",
-                #         "step": step,
-                #     }
-                # )
+                    results[epoch + 1].append(
+                        {
+                            "accuracies": accs_all_test,
+                            "type": "evaluation",
+                            "step": step,
+                        }
+                    )
+                    print("test accuracy:", accs_all_test[0])
                 # print("test accuracy:", accs)
-                # print("test accuracy:", accs_all_test[0])
-                print(f"Step: {step}")
 
         pprint.pp(results)
         if self.upload_results:
@@ -605,11 +599,19 @@ class TrainManagerMaML(TrainManager):
                     cur.execute("SELECT LASTVAL()")
                     step_id = cur.fetchone()
 
-                    for i, acc in s["accuracies"].items():
-                        cur.execute(
-                            "INSERT INTO maml_update_acc (update, accuracy, maml_step_id) VALUES (%s, %s, %s)",
-                            (i, acc, step_id),
-                        )
+                    if s["type"] == "evaluation":
+                        for eval_acc in s["accuracies"]:
+                            for i, acc in eval_acc.items():
+                                cur.execute(
+                                    "INSERT INTO maml_update_acc (update, accuracy, maml_step_id) VALUES (%s, %s, %s)",
+                                    (i, acc, step_id),
+                                )
+                    else:
+                        for i, acc in s["accuracies"].items():
+                            cur.execute(
+                                "INSERT INTO maml_update_acc (update, accuracy, maml_step_id) VALUES (%s, %s, %s)",
+                                (i, acc, step_id),
+                            )
 
             cur.execute(
                 "INSERT INTO maml_data (update_lr, meta_lr, n_way, k_spt, k_qry, task_num, update_step, update_step_test, model_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
@@ -632,7 +634,7 @@ class TrainManagerMaML(TrainManager):
                     (c, model_id),
                 )
 
-            # conn.commit()
+            conn.commit()
 
         except Exception as e:
             conn.rollback()
