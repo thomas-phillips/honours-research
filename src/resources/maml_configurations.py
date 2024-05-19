@@ -29,22 +29,22 @@ ORIGINAL_MAML_CONFIG = [
 VGGNET_CONFIG = [
     ("conv2d", [16, 1, 3, 3, 1, 2]),
     ("bn", [16]),
-    ("relu", [True]),
+    ("leakyrelu", [0.01, True]),
     ("max_pool2d", [2, 2, 0]),
     ###################
     ("conv2d", [32, 16, 3, 3, 1, 2]),
     ("bn", [32]),
-    ("relu", [True]),
+    ("leakyrelu", [0.01, True]),
     ("max_pool2d", [2, 2, 0]),
     ###################
     ("conv2d", [64, 32, 3, 3, 1, 2]),
     ("bn", [64]),
-    ("relu", [True]),
+    ("leakyrelu", [0.01, True]),
     ("max_pool2d", [2, 2, 0]),
     ###################
     ("conv2d", [128, 64, 3, 3, 1, 2]),
     ("bn", [128]),
-    ("relu", [True]),
+    ("leakyrelu", [0.01, True]),
     ("max_pool2d", [2, 2, 0]),
     ###################
     ("flatten", []),
