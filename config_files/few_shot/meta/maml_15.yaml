@@ -3,9 +3,9 @@ upload_results: true
 
 hyperparameters:
   epochs: 40
-  batch_size: 200
+  batch_size: 100
   episodes: 4
-  n_shot: 10
+  n_shot: 15
   n_query: 15
   task_num: 4
   update_learning_rate: 0.01
@@ -25,14 +25,14 @@ preprocessing:
     channels: 1
   - name: stft
     channels: 1
-  - name: combined1
-    channels: 3
-  - name: combined2
-    channels: 3
-  - name: combined3
-    channels: 3
-  - name: combined4
-    channels: 3
+  # - name: combined1
+  #   channels: 3
+  # - name: combined2
+  #   channels: 3
+  # - name: combined3
+  #   channels: 3
+  # - name: combined4
+  #   channels: 3
 
 optimiser:
   type: sgd
