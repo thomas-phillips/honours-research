@@ -130,3 +130,6 @@ dmypy.json
 
 ### General Stuff
 /out
+
+# Graphs
+graphs/

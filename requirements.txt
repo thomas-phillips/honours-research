@@ -26,4 +26,5 @@ pydub==0.25.1
 xmltodict
 python-dotenv
 psycopg2-binary
-
+plotly
+seaborn
